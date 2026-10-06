@@ -1,0 +1,31 @@
+[package]
+name = "laspl"
+version = "0.1.0"
+description = "Laspl - Simple, intuitive, secure password manager"
+authors = ["supe232323"]
+edition = "2021"
+
+[lib]
+name = "laspl_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-shell = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+argon2 = "0.5"
+aes-gcm = "0.10"
+rand = "0.8"
+zeroize = { version = "1", features = ["derive"] }
+thiserror = "1"
+base64 = "0.22"
+uuid = { version = "1", features = ["v4"] }
+dirs = "5"
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
