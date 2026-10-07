@@ -1,8 +1,8 @@
 mod crypto;
 mod vault;
 
-use vault::AppState;
 use std::sync::Mutex;
+use vault::AppState;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {

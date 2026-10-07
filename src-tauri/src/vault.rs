@@ -58,10 +58,7 @@ fn ensure_parent(path: &PathBuf) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn create_vault(
-    password: String,
-    state: State<'_, AppState>,
-) -> Result<(), String> {
+pub fn create_vault(password: String, state: State<'_, AppState>) -> Result<(), String> {
     let mut st = state.0.lock().map_err(|e| e.to_string())?;
     if st.path.exists() {
         return Err("Vault already exists".into());
