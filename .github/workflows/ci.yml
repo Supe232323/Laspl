@@ -54,13 +54,18 @@ jobs:
         with:
           workspaces: src-tauri
 
+      # Tauri's generate_context! requires frontendDist to exist at compile time.
+      # Create a placeholder so clippy/check can run without a full frontend build.
+      - name: Ensure frontendDist exists
+        run: mkdir -p dist
+
       - name: Format
         working-directory: src-tauri
         run: cargo fmt -- --check
 
       - name: Clippy
         working-directory: src-tauri
-        run: cargo clippy -- -D warnings || cargo clippy
+        run: cargo clippy -- -D warnings
 
       - name: Build
         working-directory: src-tauri

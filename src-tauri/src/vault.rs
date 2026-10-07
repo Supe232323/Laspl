@@ -159,7 +159,9 @@ pub fn add_entry(
     state: State<'_, AppState>,
 ) -> Result<PasswordEntry, String> {
     let mut st = state.0.lock().map_err(|e| e.to_string())?;
-    let key = st.key.as_ref().ok_or("Vault is locked")?;
+    if st.key.is_none() {
+        return Err("Vault is locked".into());
+    }
 
     let now = chrono_now();
     let entry = PasswordEntry {
@@ -176,14 +178,17 @@ pub fn add_entry(
     };
 
     st.data.entries.push(entry.clone());
-    persist(&st, key)?;
+    // Safe: key is Some after the early return above
+    persist(&st, st.key.as_ref().unwrap())?;
     Ok(entry)
 }
 
 #[tauri::command]
 pub fn update_entry(entry: PasswordEntry, state: State<'_, AppState>) -> Result<(), String> {
     let mut st = state.0.lock().map_err(|e| e.to_string())?;
-    let key = st.key.as_ref().ok_or("Vault is locked")?;
+    if st.key.is_none() {
+        return Err("Vault is locked".into());
+    }
 
     if let Some(existing) = st.data.entries.iter_mut().find(|e| e.id == entry.id) {
         *existing = entry;
@@ -191,17 +196,19 @@ pub fn update_entry(entry: PasswordEntry, state: State<'_, AppState>) -> Result<
     } else {
         return Err("Entry not found".into());
     }
-    persist(&st, key)?;
+    persist(&st, st.key.as_ref().unwrap())?;
     Ok(())
 }
 
 #[tauri::command]
 pub fn delete_entry(id: String, state: State<'_, AppState>) -> Result<(), String> {
     let mut st = state.0.lock().map_err(|e| e.to_string())?;
-    let key = st.key.as_ref().ok_or("Vault is locked")?;
+    if st.key.is_none() {
+        return Err("Vault is locked".into());
+    }
 
     st.data.entries.retain(|e| e.id != id);
-    persist(&st, key)?;
+    persist(&st, st.key.as_ref().unwrap())?;
     Ok(())
 }
 

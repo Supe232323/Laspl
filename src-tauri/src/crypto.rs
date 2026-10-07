@@ -2,10 +2,7 @@ use aes_gcm::{
     aead::{Aead, KeyInit, OsRng},
     Aes256Gcm, Nonce,
 };
-use argon2::{
-    password_hash::{PasswordHasher, SaltString},
-    Argon2, Params, Version,
-};
+use argon2::{Argon2, Params, Version};
 use base64::{engine::general_purpose::STANDARD as B64, Engine};
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
