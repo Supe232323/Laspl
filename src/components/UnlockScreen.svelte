@@ -6,39 +6,49 @@
   let error = $state("");
   let loading = $state(false);
 
-async function unlock() {
-  if (!password.trim()) {
-    error = "Enter your master password";
-    return;
+<script lang="ts">
+  import { isUnlocked, entries } from "../lib/store";
+  import { unlockVault } from "../lib/tauri";
+
+  let password = $state("");
+  let error = $state("");
+  let loading = $state(false);
+
+  async function unlock() {
+    if (!password.trim()) {
+      error = "Enter your master password";
+      return;
+    }
+
+    loading = true;
+    error = "";
+
+    try {
+      const list = await unlockVault(password);
+      entries.set(list);
+      isUnlocked.set(true);
+      password = "";
+    } catch (e: unknown) {
+      entries.set([]);
+      isUnlocked.set(false);
+
+      error =
+        typeof e === "string"
+          ? e
+          : e instanceof Error
+            ? e.message
+            : "Wrong password or vault error";
+    } finally {
+      loading = false;
+    }
   }
 
-  loading = true;
-  error = "";
-
-  try {
-    const list = await unlockVault(password);
-    entries.set(list);
-    isUnlocked.set(true);
-    password = "";
-  } catch (e: unknown) {
-    entries.set([]);
-    isUnlocked.set(false);
-
-    error =
-      typeof e === "string"
-        ? e
-        : e instanceof Error
-          ? e.message
-          : "Wrong password or vault error";
-  } finally {
-    loading = false;
-  }
-}
   function handleKey(e: KeyboardEvent) {
-    if (e.key === "Enter") unlock();
+    if (e.key === "Enter" && !loading) {
+      unlock();
+    }
   }
 </script>
-
 <div class="h-screen w-screen flex items-center justify-center bg-sn-bg">
   <div class="w-full max-w-sm px-6">
     <div class="text-center mb-10">
