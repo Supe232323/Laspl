@@ -42,7 +42,7 @@ jobs:
       - name: Install system deps (Tauri)
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev librsvg2-bin patchelf
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
