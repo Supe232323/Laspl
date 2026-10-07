@@ -5,3 +5,6 @@ src-tauri/target/
 *.log
 .laspl/
 *.laspl
+
+# Tauri-generated schemas
+src-tauri/gen/schemas/
