@@ -50,9 +50,11 @@ npm run tauri dev
 ```
 
 First unlock will create the vault at:
-- Linux: "~/.local/share/laspl/vault.laspl"
-- macOS: "~/Library/Application Support/laspl/vault.laspl"
-- Windows: "• %APPDATA%\laspl\vault.laspl"
+
+* **Linux:** `~/.local/share/laspl/vault.laspl`
+* **macOS:** `~/Library/Application Support/laspl/vault.laspl`
+* **Windows:** `%APPDATA%\laspl\vault.laspl`
+
 ## Project Structure
 
 ```
