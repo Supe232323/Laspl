@@ -2,7 +2,7 @@ use crate::crypto::{self, EncryptedVault, MasterKey};
 use base64::{engine::general_purpose::STANDARD as B64, Engine};
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use tauri::State;
 use uuid::Uuid;
@@ -50,7 +50,7 @@ impl Default for VaultState {
 // Global state wrapper
 pub struct AppState(pub Mutex<VaultState>);
 
-fn ensure_parent(path: &PathBuf) -> Result<(), String> {
+fn ensure_parent(path: &Path) -> Result<(), String> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
@@ -221,7 +221,7 @@ pub fn generate_password(length: usize, symbols: bool) -> String {
         charset.push_str("!@#$%^&*()-_=+[]{}|;:,.<>?");
     }
     let chars: Vec<char> = charset.chars().collect();
-    (0..length.max(8).min(128))
+    (0..length.clamp(8, 128))
         .map(|_| chars[rng.gen_range(0..chars.len())])
         .collect()
 }
