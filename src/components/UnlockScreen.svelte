@@ -6,68 +6,34 @@
   let error = $state("");
   let loading = $state(false);
 
-  async function unlock() {
-    if (!password.trim()) {
-      error = "Enter your master password";
-      return;
-    }
-    loading = true;
-    error = "";
-
-    try {
-      const list = await unlockVault(password);
-      entries.set(list);
-      isUnlocked.set(true);
-    } catch (e: any) {
-      console.warn("Tauri unlock failed, using demo mode:", e);
-      // Pure browser preview fallback
-      if (typeof window !== "undefined" && !(window as any).__TAURI_INTERNALS__) {
-        entries.set([
-          {
-            id: "1",
-            title: "GitHub",
-            username: "supe232323",
-            password: "demo-only-not-real",
-            url: "https://github.com",
-            notes: "Personal account",
-            favorite: true,
-            category: "Dev",
-            createdAt: Date.now() - 86400000,
-            updatedAt: Date.now() - 3600000,
-          },
-          {
-            id: "2",
-            title: "Proton Mail",
-            username: "me@example.com",
-            password: "correct-horse-battery",
-            url: "https://mail.proton.me",
-            favorite: false,
-            category: "Personal",
-            createdAt: Date.now() - 172800000,
-            updatedAt: Date.now() - 7200000,
-          },
-          {
-            id: "3",
-            title: "Bank of America",
-            username: "supe232323",
-            password: "very-long-secure-passphrase-here",
-            url: "https://bankofamerica.com",
-            notes: "Checking account",
-            favorite: true,
-            category: "Finance",
-            createdAt: Date.now() - 259200000,
-            updatedAt: Date.now() - 86400000,
-          },
-        ]);
-        isUnlocked.set(true);
-      } else {
-        error = typeof e === "string" ? e : e?.message || "Wrong password or vault error";
-      }
-    } finally {
-      loading = false;
-    }
+async function unlock() {
+  if (!password.trim()) {
+    error = "Enter your master password";
+    return;
   }
 
+  loading = true;
+  error = "";
+
+  try {
+    const list = await unlockVault(password);
+    entries.set(list);
+    isUnlocked.set(true);
+    password = "";
+  } catch (e: unknown) {
+    entries.set([]);
+    isUnlocked.set(false);
+
+    error =
+      typeof e === "string"
+        ? e
+        : e instanceof Error
+          ? e.message
+          : "Wrong password or vault error";
+  } finally {
+    loading = false;
+  }
+}
   function handleKey(e: KeyboardEvent) {
     if (e.key === "Enter") unlock();
   }
