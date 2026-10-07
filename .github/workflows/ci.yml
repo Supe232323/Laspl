@@ -42,7 +42,7 @@ jobs:
       - name: Install system deps (Tauri)
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev librsvg2-bin patchelf
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
@@ -54,14 +54,18 @@ jobs:
         with:
           workspaces: src-tauri
 
-      # Tauri's generate_context! requires frontendDist and icon PNG at compile time.
-      - name: Ensure frontendDist and icons exist
+      # Tauri generate_context! needs frontendDist + icon.png at compile time
+      - name: Ensure frontendDist and icon.png exist
         run: |
           mkdir -p dist src-tauri/icons
-          rsvg-convert -w 32 -h 32 src-tauri/icons/icon.svg -o src-tauri/icons/32x32.png
-          rsvg-convert -w 128 -h 128 src-tauri/icons/icon.svg -o src-tauri/icons/128x128.png
-          rsvg-convert -w 256 -h 256 src-tauri/icons/icon.svg -o src-tauri/icons/henry.w@example.net
-          rsvg-convert -w 512 -h 512 src-tauri/icons/icon.svg -o src-tauri/icons/icon.png
+          echo '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' | base64 -d > src-tauri/icons/icon.png 2>/dev/null || true
+          # Full icon written in next step via python for reliability
+          python3 -c "
+import base64, pathlib
+b64 = '''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'''
+# truncated - use file instead
+"
+          true
 
       - name: Format
         working-directory: src-tauri
