@@ -1,6 +1,6 @@
 <script lang="ts">
   import { createEventDispatcher } from "svelte";
-  import { generatePassword } from "../lib/tauri";
+  import { generatePassword, type GenerateMode } from "../lib/tauri";
 
   const dispatch = createEventDispatcher<{
     save: {
@@ -20,22 +20,27 @@
   let url = $state("");
   let notes = $state("");
   let category = $state("");
-  let length = $state(20);
+
+  // Generator state
+  let mode = $state<GenerateMode>("password");
+  let length = $state(20);          // chars for password, words for passphrase
   let symbols = $state(true);
+  let excludeAmbiguous = $state(false);
   let generating = $state(false);
 
   async function gen() {
     generating = true;
     try {
-      password = await generatePassword(length, symbols);
-    } catch {
-      // fallback pure JS
-      const chars =
-        "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789" +
-        (symbols ? "!@#$%^&*()-_=+[]{}|;:,.<>?" : "");
-      password = Array.from({ length }, () =>
-        chars[Math.floor(Math.random() * chars.length)]
-      ).join("");
+      password = await generatePassword({
+        mode,
+        length,
+        symbols,
+        excludeAmbiguous,
+      });
+    } catch (e) {
+      console.error("Generator failed:", e);
+      // No Math.random fallback — if Rust CSPRNG fails we surface the error
+      password = "";
     } finally {
       generating = false;
     }
@@ -51,6 +56,12 @@
       notes: notes.trim() || undefined,
       category: category.trim() || undefined,
     });
+  }
+
+  // Reset length defaults when switching mode
+  function setMode(m: GenerateMode) {
+    mode = m;
+    length = m === "passphrase" ? 5 : 20;
   }
 </script>
 
@@ -103,15 +114,52 @@
             {generating ? "…" : "Generate"}
           </button>
         </div>
-        <div class="flex items-center gap-3 mt-2 text-xs text-sn-text-muted">
+
+        <!-- Mode toggle -->
+        <div class="flex gap-2 mt-2">
+          <button
+            class="flex-1 py-1.5 text-xs rounded-md border transition
+                   {mode === 'password'
+                     ? 'bg-sn-accent text-white border-sn-accent'
+                     : 'bg-sn-bg border-sn-border text-sn-text-muted hover:text-sn-text'}"
+            onclick={() => setMode("password")}
+          >
+            Random
+          </button>
+          <button
+            class="flex-1 py-1.5 text-xs rounded-md border transition
+                   {mode === 'passphrase'
+                     ? 'bg-sn-accent text-white border-sn-accent'
+                     : 'bg-sn-bg border-sn-border text-sn-text-muted hover:text-sn-text'}"
+            onclick={() => setMode("passphrase")}
+          >
+            Passphrase
+          </button>
+        </div>
+
+        <!-- Options -->
+        <div class="flex flex-wrap items-center gap-3 mt-2 text-xs text-sn-text-muted">
           <label class="flex items-center gap-1">
-            <input type="range" min="8" max="64" bind:value={length} class="w-20" />
-            {length}
+            <input
+              type="range"
+              min={mode === "passphrase" ? 4 : 12}
+              max={mode === "passphrase" ? 8 : 64}
+              bind:value={length}
+              class="w-20"
+            />
+            {length}{mode === "passphrase" ? " words" : " chars"}
           </label>
-          <label class="flex items-center gap-1 cursor-pointer">
-            <input type="checkbox" bind:checked={symbols} />
-            Symbols
-          </label>
+
+          {#if mode === "password"}
+            <label class="flex items-center gap-1 cursor-pointer">
+              <input type="checkbox" bind:checked={symbols} />
+              Symbols
+            </label>
+            <label class="flex items-center gap-1 cursor-pointer" title="Exclude 0/O, 1/l/I">
+              <input type="checkbox" bind:checked={excludeAmbiguous} />
+              No ambiguous
+            </label>
+          {/if}
         </div>
       </div>
 
