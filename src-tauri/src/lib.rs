@@ -10,7 +10,6 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .manage(AppState(Mutex::new(vault::VaultState::default())))
         .invoke_handler(tauri::generate_handler![
-            vault::create_vault,
             vault::unlock_vault,
             vault::lock_vault,
             vault::list_entries,
