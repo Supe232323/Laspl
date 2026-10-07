@@ -47,7 +47,6 @@ impl Default for VaultState {
     }
 }
 
-// Global state wrapper
 pub struct AppState(pub Mutex<VaultState>);
 
 fn ensure_parent(path: &Path) -> Result<(), String> {
@@ -93,7 +92,6 @@ pub fn unlock_vault(
 ) -> Result<Vec<PasswordEntry>, String> {
     let mut st = state.0.lock().map_err(|e| e.to_string())?;
 
-    // First run: create empty vault in-place
     if !st.path.exists() {
         let salt = crypto::generate_salt();
         let key = crypto::derive_key(&password, &salt).map_err(|e| e.to_string())?;
@@ -178,7 +176,6 @@ pub fn add_entry(
     };
 
     st.data.entries.push(entry.clone());
-    // Safe: key is Some after the early return above
     persist(&st, st.key.as_ref().unwrap())?;
     Ok(entry)
 }
@@ -230,7 +227,6 @@ fn persist(st: &VaultState, key: &MasterKey) -> Result<(), String> {
     let plaintext = serde_json::to_vec(&st.data).map_err(|e| e.to_string())?;
     let encrypted = crypto::encrypt(key, &plaintext).map_err(|e| e.to_string())?;
 
-    // Re-read salt from existing file or generate new (simplified)
     let salt = if st.path.exists() {
         let raw = fs::read_to_string(&st.path).unwrap_or_default();
         if let Ok(v) = serde_json::from_str::<EncryptedVault>(&raw) {

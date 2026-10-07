@@ -17,8 +17,8 @@ pub fn run() {
             vault::add_entry,
             vault::update_entry,
             vault::delete_entry,
-            vault::generate_password,
+            vault::generate_password
         ])
         .run(tauri::generate_context!())
-        .expect("error while running Laspl");
+        .expect("error while running tauri application");
 }
