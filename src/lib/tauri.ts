@@ -71,9 +71,25 @@ export async function deleteEntry(id: string): Promise<void> {
   await invoke("delete_entry", { id });
 }
 
-export async function generatePassword(
-  length = 20,
-  symbols = true
-): Promise<string> {
-  return invoke<string>("generate_password", { length, symbols });
+export type GenerateMode = "password" | "passphrase";
+
+export async function generatePassword(opts: {
+  mode?: GenerateMode;
+  length?: number;
+  symbols?: boolean;
+  excludeAmbiguous?: boolean;
+} = {}): Promise<string> {
+  const {
+    mode = "password",
+    length = mode === "passphrase" ? 5 : 20,
+    symbols = true,
+    excludeAmbiguous = false,
+  } = opts;
+
+  return invoke<string>("generate_password", {
+    mode,
+    length,
+    symbols,
+    excludeAmbiguous,
+  });
 }
