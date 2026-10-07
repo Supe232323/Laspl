@@ -57,35 +57,6 @@ fn ensure_parent(path: &Path) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn create_vault(password: String, state: State<'_, AppState>) -> Result<(), String> {
-    let mut st = state.0.lock().map_err(|e| e.to_string())?;
-    if st.path.exists() {
-        return Err("Vault already exists".into());
-    }
-
-    let salt = crypto::generate_salt();
-    let key = crypto::derive_key(&password, &salt).map_err(|e| e.to_string())?;
-
-    let data = VaultData::default();
-    let plaintext = serde_json::to_vec(&data).map_err(|e| e.to_string())?;
-    let encrypted = crypto::encrypt(&key, &plaintext).map_err(|e| e.to_string())?;
-
-    let vault = EncryptedVault {
-        version: 1,
-        salt: B64.encode(salt),
-        data: encrypted,
-    };
-
-    ensure_parent(&st.path)?;
-    let json = serde_json::to_string_pretty(&vault).map_err(|e| e.to_string())?;
-    fs::write(&st.path, json).map_err(|e| e.to_string())?;
-
-    st.key = Some(key);
-    st.data = data;
-    Ok(())
-}
-
-#[tauri::command]
 pub fn unlock_vault(
     password: String,
     state: State<'_, AppState>,
