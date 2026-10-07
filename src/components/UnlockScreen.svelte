@@ -5,15 +5,6 @@
   let password = $state("");
   let error = $state("");
   let loading = $state(false);
-
-<script lang="ts">
-  import { isUnlocked, entries } from "../lib/store";
-  import { unlockVault } from "../lib/tauri";
-
-  let password = $state("");
-  let error = $state("");
-  let loading = $state(false);
-
   async function unlock() {
     if (!password.trim()) {
       error = "Enter your master password";
