@@ -54,10 +54,31 @@ jobs:
         with:
           workspaces: src-tauri
 
-      # Tauri's generate_context! requires frontendDist to exist at compile time.
-      # Create a placeholder so clippy/check can run without a full frontend build.
-      - name: Ensure frontendDist exists
-        run: mkdir -p dist
+      # Tauri's generate_context! requires frontendDist and icon PNG at compile time.
+      - name: Ensure frontendDist and icons exist
+        run: |
+          mkdir -p dist
+          # Convert the committed SVG to the PNG sizes Tauri expects
+          if [ -f src-tauri/icons/icon.svg ]; then
+            rsvg-convert -w 32 -h 32 src-tauri/icons/icon.svg -o src-tauri/icons/32x32.png
+            rsvg-convert -w 128 -h 128 src-tauri/icons/icon.svg -o src-tauri/icons/128x128.png
+            rsvg-convert -w 256 -h 256 src-tauri/icons/icon.svg -o src-tauri/icons/henry.w@example.net
+            rsvg-convert -w 512 -h 512 src-tauri/icons/icon.svg -o src-tauri/icons/icon.png
+          else
+            # Fallback: create a minimal valid 1x1 PNG if no SVG
+            python3 -c "
+import struct, zlib
+def png(w,h):
+  def chunk(t,d): return struct.pack('>I',len(d))+t+d+struct.pack('>I',zlib.crc32(t+d)&0xffffffff)
+  sig=b'\x89PNG\r\n\x1a\n'
+  ihdr=chunk(b'IHDR',struct.pack('>IIBBBBB',w,h,8,2,0,0,0))
+  raw=b''.join(b'\x00'+b'\x00\x00\x00'*w for _ in range(h))
+  idat=chunk(b'IDAT',zlib.compress(raw))
+  iend=chunk(b'IEND',b'')
+  return sig+ihdr+idat+iend
+open('src-tauri/icons/icon.png','wb').write(png(32,32))
+"
+          fi
 
       - name: Format
         working-directory: src-tauri
