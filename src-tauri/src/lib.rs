@@ -1,6 +1,9 @@
 mod crypto;
 mod vault;
 
+mod crypto;
+mod vault;
+
 use std::sync::Mutex;
 use vault::AppState;
 
