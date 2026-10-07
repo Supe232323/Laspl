@@ -99,6 +99,34 @@ Laspl/
 - **CI** (`.github/workflows/ci.yml`): frontend build + Rust clippy/fmt/check on every push/PR
 - **Release** (`.github/workflows/release.yml`): builds installers for Linux / Windows / macOS on `v*` tags
 
+## macOS installation
+
+Laspl is not currently signed or notarized by Apple. macOS may block its
+first launch.
+
+1. Move **Laspl.app** to the Applications folder.
+2. Try to open Laspl once and dismiss the security warning.
+3. Open **System Settings → Privacy & Security**.
+4. Scroll down to the **Security** section.
+5. Find the message that Laspl was blocked and click **Open Anyway**.
+6. Authenticate with your password or Touch ID, then confirm **Open Anyway**.
+
+The Open Anyway option is only available for about one hour after attempting
+to launch the app.
+
+### Terminal fallback
+
+Only use this if you downloaded Laspl from this official GitHub release and
+trust the file:
+
+```bash
+xattr -dr com.apple.quarantine /Applications/Laspl.app
+```
+
+Alternatively, after attempting to open the app, go to:
+
+**System Settings → Privacy & Security → Open Anyway**
+
 ## License
 
 GNU Affero General Public License v3.0 — see [LICENSE](LICENSE)
@@ -106,3 +134,4 @@ GNU Affero General Public License v3.0 — see [LICENSE](LICENSE)
 ---
 
 Made by [Supe232323](https://github.com/Supe232323)
+
