@@ -305,7 +305,7 @@ pub fn add_entry(
 pub fn update_entry(entry: PasswordEntry, state: State<'_, AppState>) -> Result<(), String> {
     let mut st = state.0.lock().map_err(|e| e.to_string())?;
     if st.key.is_none() {
-        return Err("Entry not found".into());
+        return Err("Vault is locked".into());
     }
 
     if let Some(existing) = st.data.entries.iter_mut().find(|e| e.id == entry.id) {
