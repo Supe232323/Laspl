@@ -10,10 +10,12 @@ function mapEntry(raw: any): PasswordEntry {
     password: raw.password,
     url: raw.url ?? undefined,
     notes: raw.notes ?? undefined,
-    favorite: raw.favorite,
+    favorite: raw.favorite ?? false,
     category: raw.category ?? undefined,
+    deleted: raw.deleted ?? false,
     createdAt: raw.created_at,
     updatedAt: raw.updated_at,
+    lastUsedAt: raw.last_used_at ?? undefined,
   };
 }
 
@@ -61,8 +63,10 @@ export async function updateEntry(entry: PasswordEntry): Promise<void> {
       notes: entry.notes ?? null,
       favorite: entry.favorite,
       category: entry.category ?? null,
+      deleted: entry.deleted,
       created_at: entry.createdAt,
       updated_at: entry.updatedAt,
+      last_used_at: entry.lastUsedAt ?? null,
     },
   });
 }
@@ -71,14 +75,46 @@ export async function deleteEntry(id: string): Promise<void> {
   await invoke("delete_entry", { id });
 }
 
+export async function restoreEntry(id: string): Promise<void> {
+  await invoke("restore_entry", { id });
+}
+
+export async function purgeDeleted(): Promise<void> {
+  await invoke("purge_deleted");
+}
+
+export async function touchEntry(id: string): Promise<void> {
+  await invoke("touch_entry", { id });
+}
+
+export async function changeMasterPassword(
+  currentPassword: string,
+  newPassword: string
+): Promise<void> {
+  await invoke("change_master_password", {
+    currentPassword,
+    newPassword,
+  });
+}
+
+export async function exportVault(): Promise<string> {
+  return invoke<string>("export_vault");
+}
+
+export async function importVault(data: string): Promise<void> {
+  await invoke("import_vault", { data });
+}
+
 export type GenerateMode = "password" | "passphrase";
 
-export async function generatePassword(opts: {
-  mode?: GenerateMode;
-  length?: number;
-  symbols?: boolean;
-  excludeAmbiguous?: boolean;
-} = {}): Promise<string> {
+export async function generatePassword(
+  opts: {
+    mode?: GenerateMode;
+    length?: number;
+    symbols?: boolean;
+    excludeAmbiguous?: boolean;
+  } = {}
+): Promise<string> {
   const {
     mode = "password",
     length = mode === "passphrase" ? 5 : 20,
@@ -92,4 +128,24 @@ export async function generatePassword(opts: {
     symbols,
     excludeAmbiguous,
   });
+}
+
+/** Copy text to clipboard and clear after `clearAfterMs` (default 30s). */
+export async function copyWithClear(
+  text: string,
+  clearAfterMs = 30_000
+): Promise<void> {
+  await navigator.clipboard.writeText(text);
+  if (clearAfterMs > 0) {
+    setTimeout(async () => {
+      try {
+        const current = await navigator.clipboard.readText();
+        if (current === text) {
+          await navigator.clipboard.writeText("");
+        }
+      } catch {
+        // Clipboard read may be denied — ignore
+      }
+    }, clearAfterMs);
+  }
 }

@@ -7,6 +7,7 @@
   }
 
   function formatDate(ts: number) {
+    if (!ts) return "";
     return new Date(ts).toLocaleDateString(undefined, {
       month: "short",
       day: "numeric",
