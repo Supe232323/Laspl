@@ -69,7 +69,6 @@ fn tmp_path(path: &Path) -> PathBuf {
     path.with_extension("laspl.tmp")
 }
 
-/// Atomic write: write tmp → fsync → backup existing → rename tmp over target.
 fn atomic_write(path: &Path, contents: &str) -> Result<(), String> {
     ensure_parent(path)?;
     let tmp = tmp_path(path);
@@ -158,6 +157,12 @@ fn try_load_vault(path: &Path, password: &str) -> Result<(MasterKey, VaultData),
         crypto::decrypt(&key, &vault.data).map_err(|_| "Wrong password".to_string())?;
     let data: VaultData = serde_json::from_slice(&plaintext).map_err(|e| e.to_string())?;
     Ok((key, data))
+}
+
+#[tauri::command]
+pub fn vault_exists(state: State<'_, AppState>) -> Result<bool, String> {
+    let st = state.0.lock().map_err(|e| e.to_string())?;
+    Ok(st.path.exists() || bak_path(&st.path).exists())
 }
 
 #[tauri::command]
@@ -300,7 +305,7 @@ pub fn add_entry(
 pub fn update_entry(entry: PasswordEntry, state: State<'_, AppState>) -> Result<(), String> {
     let mut st = state.0.lock().map_err(|e| e.to_string())?;
     if st.key.is_none() {
-        return Err("Vault is locked".into());
+        return Err("Entry not found".into());
     }
 
     if let Some(existing) = st.data.entries.iter_mut().find(|e| e.id == entry.id) {
