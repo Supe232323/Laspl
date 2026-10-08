@@ -1,6 +1,8 @@
 <script lang="ts">
   import { createEventDispatcher } from "svelte";
+  import { entries } from "../lib/store";
   import { generatePassword, type GenerateMode } from "../lib/tauri";
+  import { scorePassword, findDuplicatePasswords } from "../lib/strength";
 
   const dispatch = createEventDispatcher<{
     save: {
@@ -21,15 +23,19 @@
   let notes = $state("");
   let category = $state("");
 
-  // Generator state
   let mode = $state<GenerateMode>("password");
-  let length = $state(20);          // chars for password, words for passphrase
+  let length = $state(20);
   let symbols = $state(true);
   let excludeAmbiguous = $state(false);
   let generating = $state(false);
+  let dupOverride = $state(false);
+
+  const strength = $derived(scorePassword(password));
+  const dups = $derived(findDuplicatePasswords(password, $entries));
 
   async function gen() {
     generating = true;
+    dupOverride = false;
     try {
       password = await generatePassword({
         mode,
@@ -39,7 +45,6 @@
       });
     } catch (e) {
       console.error("Generator failed:", e);
-      // No Math.random fallback — if Rust CSPRNG fails we surface the error
       password = "";
     } finally {
       generating = false;
@@ -48,6 +53,10 @@
 
   function save() {
     if (!title.trim() || !password) return;
+    if (dups.length > 0 && !dupOverride) {
+      dupOverride = true;
+      return;
+    }
     dispatch("save", {
       title: title.trim(),
       username: username.trim(),
@@ -58,7 +67,6 @@
     });
   }
 
-  // Reset length defaults when switching mode
   function setMode(m: GenerateMode) {
     mode = m;
     length = m === "passphrase" ? 5 : 20;
@@ -66,146 +74,85 @@
 </script>
 
 <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-  <div class="w-full max-w-md mx-4 rounded-xl bg-sn-bg-secondary border border-sn-border shadow-2xl">
-    <div class="px-5 py-4 border-b border-sn-border flex items-center justify-between">
+  <div class="w-full max-w-md mx-4 rounded-xl bg-sn-bg-secondary border border-sn-border shadow-2xl max-h-[90vh] overflow-y-auto">
+    <div class="px-5 py-4 border-b border-sn-border flex items-center justify-between sticky top-0 bg-sn-bg-secondary">
       <h2 class="text-lg font-semibold text-sn-text">New Entry</h2>
-      <button
-        class="text-sn-text-muted hover:text-sn-text text-xl leading-none"
-        onclick={() => dispatch("close")}
-      >
-        ×
-      </button>
+      <button class="text-sn-text-muted hover:text-sn-text text-xl leading-none" onclick={() => dispatch("close")}>×</button>
     </div>
 
     <div class="p-5 space-y-4">
       <div>
         <label class="block text-xs font-medium text-sn-text-muted uppercase mb-1">Title</label>
-        <input
-          bind:value={title}
-          class="w-full px-3 py-2 rounded-lg bg-sn-bg border border-sn-border text-sn-text
-                 focus:outline-none focus:ring-1 focus:ring-sn-accent"
-          placeholder="GitHub, Bank, etc."
-        />
+        <input bind:value={title} class="w-full px-3 py-2 rounded-lg bg-sn-bg border border-sn-border text-sn-text focus:outline-none focus:ring-1 focus:ring-sn-accent" placeholder="GitHub, Bank, etc." />
       </div>
 
       <div>
         <label class="block text-xs font-medium text-sn-text-muted uppercase mb-1">Username</label>
-        <input
-          bind:value={username}
-          class="w-full px-3 py-2 rounded-lg bg-sn-bg border border-sn-border text-sn-text
-                 focus:outline-none focus:ring-1 focus:ring-sn-accent"
-        />
+        <input bind:value={username} class="w-full px-3 py-2 rounded-lg bg-sn-bg border border-sn-border text-sn-text focus:outline-none focus:ring-1 focus:ring-sn-accent" />
       </div>
 
       <div>
         <label class="block text-xs font-medium text-sn-text-muted uppercase mb-1">Password</label>
         <div class="flex gap-2">
-          <input
-            bind:value={password}
-            type="text"
-            class="flex-1 px-3 py-2 rounded-lg bg-sn-bg border border-sn-border text-sn-text font-mono
-                   focus:outline-none focus:ring-1 focus:ring-sn-accent"
-          />
-          <button
-            onclick={gen}
-            disabled={generating}
-            class="px-3 py-2 rounded-lg bg-sn-accent text-white text-sm hover:bg-sn-accent-hover disabled:opacity-60"
-          >
-            {generating ? "…" : "Generate"}
-          </button>
+          <input bind:value={password} type="text" class="flex-1 px-3 py-2 rounded-lg bg-sn-bg border border-sn-border text-sn-text font-mono focus:outline-none focus:ring-1 focus:ring-sn-accent" oninput={() => (dupOverride = false)} />
+          <button onclick={gen} disabled={generating} class="px-3 py-2 rounded-lg bg-sn-accent text-white text-sm hover:bg-sn-accent-hover disabled:opacity-60">{generating ? "…" : "Generate"}</button>
         </div>
 
-        <!-- Mode toggle -->
+        {#if password}
+          <div class="mt-2 flex items-center gap-2">
+            <div class="flex-1 h-1.5 rounded-full bg-sn-bg overflow-hidden flex gap-0.5">
+              {#each [1, 2, 3, 4] as i}
+                <div class="flex-1 rounded-full transition {strength.score >= i ? strength.color : 'bg-sn-border'}"></div>
+              {/each}
+            </div>
+            <span class="text-xs text-sn-text-muted w-12 text-right">{strength.label}</span>
+          </div>
+        {/if}
+
+        {#if dups.length > 0}
+          <p class="mt-2 text-xs text-yellow-400">
+            Same password as: {dups.slice(0, 3).join(", ")}{dups.length > 3 ? "…" : ""}.
+            {dupOverride ? " Click Save again to use it anyway." : ""}
+          </p>
+        {/if}
+
         <div class="flex gap-2 mt-2">
-          <button
-            class="flex-1 py-1.5 text-xs rounded-md border transition
-                   {mode === 'password'
-                     ? 'bg-sn-accent text-white border-sn-accent'
-                     : 'bg-sn-bg border-sn-border text-sn-text-muted hover:text-sn-text'}"
-            onclick={() => setMode("password")}
-          >
-            Random
-          </button>
-          <button
-            class="flex-1 py-1.5 text-xs rounded-md border transition
-                   {mode === 'passphrase'
-                     ? 'bg-sn-accent text-white border-sn-accent'
-                     : 'bg-sn-bg border-sn-border text-sn-text-muted hover:text-sn-text'}"
-            onclick={() => setMode("passphrase")}
-          >
-            Passphrase
-          </button>
+          <button class="flex-1 py-1.5 text-xs rounded-md border transition {mode === 'password' ? 'bg-sn-accent text-white border-sn-accent' : 'bg-sn-bg border-sn-border text-sn-text-muted'}" onclick={() => setMode("password")}>Random</button>
+          <button class="flex-1 py-1.5 text-xs rounded-md border transition {mode === 'passphrase' ? 'bg-sn-accent text-white border-sn-accent' : 'bg-sn-bg border-sn-border text-sn-text-muted'}" onclick={() => setMode("passphrase")}>Passphrase</button>
         </div>
 
-        <!-- Options -->
         <div class="flex flex-wrap items-center gap-3 mt-2 text-xs text-sn-text-muted">
           <label class="flex items-center gap-1">
-            <input
-              type="range"
-              min={mode === "passphrase" ? 4 : 12}
-              max={mode === "passphrase" ? 8 : 64}
-              bind:value={length}
-              class="w-20"
-            />
+            <input type="range" min={mode === "passphrase" ? 4 : 12} max={mode === "passphrase" ? 8 : 64} bind:value={length} class="w-20" />
             {length}{mode === "passphrase" ? " words" : " chars"}
           </label>
-
           {#if mode === "password"}
-            <label class="flex items-center gap-1 cursor-pointer">
-              <input type="checkbox" bind:checked={symbols} />
-              Symbols
-            </label>
-            <label class="flex items-center gap-1 cursor-pointer" title="Exclude 0/O, 1/l/I">
-              <input type="checkbox" bind:checked={excludeAmbiguous} />
-              No ambiguous
-            </label>
+            <label class="flex items-center gap-1 cursor-pointer"><input type="checkbox" bind:checked={symbols} /> Symbols</label>
+            <label class="flex items-center gap-1 cursor-pointer"><input type="checkbox" bind:checked={excludeAmbiguous} /> No ambiguous</label>
           {/if}
         </div>
       </div>
 
       <div>
         <label class="block text-xs font-medium text-sn-text-muted uppercase mb-1">URL</label>
-        <input
-          bind:value={url}
-          class="w-full px-3 py-2 rounded-lg bg-sn-bg border border-sn-border text-sn-text
-                 focus:outline-none focus:ring-1 focus:ring-sn-accent"
-          placeholder="https://"
-        />
+        <input bind:value={url} class="w-full px-3 py-2 rounded-lg bg-sn-bg border border-sn-border text-sn-text focus:outline-none focus:ring-1 focus:ring-sn-accent" placeholder="https://" />
       </div>
 
       <div>
         <label class="block text-xs font-medium text-sn-text-muted uppercase mb-1">Category</label>
-        <input
-          bind:value={category}
-          class="w-full px-3 py-2 rounded-lg bg-sn-bg border border-sn-border text-sn-text
-                 focus:outline-none focus:ring-1 focus:ring-sn-accent"
-          placeholder="Dev, Personal, Finance…"
-        />
+        <input bind:value={category} class="w-full px-3 py-2 rounded-lg bg-sn-bg border border-sn-border text-sn-text focus:outline-none focus:ring-1 focus:ring-sn-accent" placeholder="Dev, Personal, Finance…" />
       </div>
 
       <div>
         <label class="block text-xs font-medium text-sn-text-muted uppercase mb-1">Notes</label>
-        <textarea
-          bind:value={notes}
-          rows="2"
-          class="w-full px-3 py-2 rounded-lg bg-sn-bg border border-sn-border text-sn-text
-                 focus:outline-none focus:ring-1 focus:ring-sn-accent resize-none"
-        ></textarea>
+        <textarea bind:value={notes} rows="2" class="w-full px-3 py-2 rounded-lg bg-sn-bg border border-sn-border text-sn-text focus:outline-none focus:ring-1 focus:ring-sn-accent resize-none"></textarea>
       </div>
     </div>
 
     <div class="px-5 py-4 border-t border-sn-border flex justify-end gap-2">
-      <button
-        class="px-4 py-2 rounded-lg text-sn-text-secondary hover:bg-sn-bg transition"
-        onclick={() => dispatch("close")}
-      >
-        Cancel
-      </button>
-      <button
-        class="px-4 py-2 rounded-lg bg-sn-accent text-white hover:bg-sn-accent-hover transition"
-        onclick={save}
-      >
-        Save
+      <button class="px-4 py-2 rounded-lg text-sn-text-secondary hover:bg-sn-bg transition" onclick={() => dispatch("close")}>Cancel</button>
+      <button class="px-4 py-2 rounded-lg bg-sn-accent text-white hover:bg-sn-accent-hover transition" onclick={save}>
+        {dups.length > 0 && !dupOverride ? "Save anyway?" : "Save"}
       </button>
     </div>
   </div>
