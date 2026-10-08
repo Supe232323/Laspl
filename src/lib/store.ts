@@ -11,6 +11,21 @@ export const currentCategory = writable<string | null>(null);
 /** Idle auto-lock timeout in ms (5 minutes). Set 0 to disable. */
 export const autoLockMs = writable(5 * 60 * 1000);
 
+/** Last user activity timestamp — shared so UI can show countdown. */
+export const lastActivity = writable(Date.now());
+
+export function bumpActivity() {
+  lastActivity.set(Date.now());
+}
+
+export const msUntilLock = derived(
+  [isUnlocked, autoLockMs, lastActivity],
+  ([$unlocked, $timeout, $last]) => {
+    if (!$unlocked || $timeout <= 0) return null;
+    return Math.max(0, $timeout - (Date.now() - $last));
+  }
+);
+
 export const filteredEntries = derived(
   [entries, searchQuery, currentView, currentCategory],
   ([$entries, $search, $view, $category]) => {
@@ -44,7 +59,6 @@ export const filteredEntries = derived(
       );
     }
 
-    // For non-recent views: newest first
     if ($view !== "recent") {
       list = [...list].sort((a, b) => b.updatedAt - a.updatedAt);
     }
@@ -58,7 +72,6 @@ export const selectedEntry = derived(
   ([$entries, $id]) => $entries.find((e) => e.id === $id) ?? null
 );
 
-/** Unique categories derived from entries (excluding deleted). */
 export const categories = derived(entries, ($entries) => {
   const set = new Set<string>();
   for (const e of $entries) {
