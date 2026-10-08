@@ -54,7 +54,47 @@ jobs:
         with:
           tagName: ${{ github.ref_name }}
           releaseName: "Laspl ${{ github.ref_name }}"
-          releaseBody: "See the assets below to download and install."
+          releaseBody: |
+            **Verify downloads** with `SHA256SUMS` attached to this release.
+
+            ```bash
+            sha256sum -c SHA256SUMS
+            ```
+
+            Laspl is not code-signed/notarized. Download only from this GitHub release.
+            See the README for macOS “Open Anyway” steps.
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
+
+  checksums:
+    name: Upload SHA256SUMS
+    needs: publish-tauri
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download release assets
+        uses: robinraju/release-downloader@v1
+        with:
+          tag: ${{ github.ref_name }}
+          fileName: "*"
+          tarBall: false
+          zipBall: false
+          out-file-path: assets
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate SHA256SUMS
+        working-directory: assets
+        run: |
+          find . -type f ! -name 'SHA256SUMS' ! -name '*.json' -print0 \
+            | sort -z \
+            | xargs -0 sha256sum > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Upload SHA256SUMS to release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          files: assets/SHA256SUMS
+          draft: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -34,7 +34,7 @@ jobs:
         run: npm run build
 
   rust:
-    name: Rust (check)
+    name: Rust (check + test)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -65,6 +65,10 @@ jobs:
       - name: Clippy
         working-directory: src-tauri
         run: cargo clippy -- -D warnings
+
+      - name: Test
+        working-directory: src-tauri
+        run: cargo test
 
       - name: Build
         working-directory: src-tauri
