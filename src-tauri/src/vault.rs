@@ -18,8 +18,12 @@ pub struct PasswordEntry {
     pub notes: Option<String>,
     pub favorite: bool,
     pub category: Option<String>,
+    #[serde(default)]
+    pub deleted: bool,
     pub created_at: i64,
     pub updated_at: i64,
+    #[serde(default)]
+    pub last_used_at: Option<i64>,
 }
 
 #[derive(Serialize, Deserialize, Default)]
@@ -53,6 +57,41 @@ fn ensure_parent(path: &Path) -> Result<(), String> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
+    Ok(())
+}
+
+/// Unix timestamp in **milliseconds** (matches JS Date.now()).
+fn chrono_now() -> i64 {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_millis() as i64
+}
+
+fn persist(st: &VaultState, key: &MasterKey) -> Result<(), String> {
+    let plaintext = serde_json::to_vec(&st.data).map_err(|e| e.to_string())?;
+    let encrypted = crypto::encrypt(key, &plaintext).map_err(|e| e.to_string())?;
+
+    let salt = if st.path.exists() {
+        let raw = fs::read_to_string(&st.path).unwrap_or_default();
+        if let Ok(v) = serde_json::from_str::<EncryptedVault>(&raw) {
+            v.salt
+        } else {
+            B64.encode(crypto::generate_salt())
+        }
+    } else {
+        B64.encode(crypto::generate_salt())
+    };
+
+    let vault = EncryptedVault {
+        version: 1,
+        salt,
+        data: encrypted,
+    };
+    ensure_parent(&st.path)?;
+    let json = serde_json::to_string_pretty(&vault).map_err(|e| e.to_string())?;
+    fs::write(&st.path, json).map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -90,7 +129,8 @@ pub fn unlock_vault(
     let salt = B64.decode(&vault.salt).map_err(|e| e.to_string())?;
     let key = crypto::derive_key(&password, &salt).map_err(|e| e.to_string())?;
 
-    let plaintext = crypto::decrypt(&key, &vault.data).map_err(|_| "Wrong password".to_string())?;
+    let plaintext =
+        crypto::decrypt(&key, &vault.data).map_err(|_| "Wrong password".to_string())?;
     let data: VaultData = serde_json::from_slice(&plaintext).map_err(|e| e.to_string())?;
 
     st.key = Some(key);
@@ -142,8 +182,10 @@ pub fn add_entry(
         notes,
         favorite: false,
         category,
+        deleted: false,
         created_at: now,
         updated_at: now,
+        last_used_at: None,
     };
 
     st.data.entries.push(entry.clone());
@@ -168,6 +210,7 @@ pub fn update_entry(entry: PasswordEntry, state: State<'_, AppState>) -> Result<
     Ok(())
 }
 
+/// Soft-delete: mark as deleted (moves to Trash).
 #[tauri::command]
 pub fn delete_entry(id: String, state: State<'_, AppState>) -> Result<(), String> {
     let mut st = state.0.lock().map_err(|e| e.to_string())?;
@@ -175,16 +218,142 @@ pub fn delete_entry(id: String, state: State<'_, AppState>) -> Result<(), String
         return Err("Vault is locked".into());
     }
 
-    st.data.entries.retain(|e| e.id != id);
+    if let Some(entry) = st.data.entries.iter_mut().find(|e| e.id == id) {
+        entry.deleted = true;
+        entry.updated_at = chrono_now();
+    } else {
+        return Err("Entry not found".into());
+    }
     persist(&st, st.key.as_ref().unwrap())?;
     Ok(())
 }
 
+#[tauri::command]
+pub fn restore_entry(id: String, state: State<'_, AppState>) -> Result<(), String> {
+    let mut st = state.0.lock().map_err(|e| e.to_string())?;
+    if st.key.is_none() {
+        return Err("Vault is locked".into());
+    }
+
+    if let Some(entry) = st.data.entries.iter_mut().find(|e| e.id == id) {
+        entry.deleted = false;
+        entry.updated_at = chrono_now();
+    } else {
+        return Err("Entry not found".into());
+    }
+    persist(&st, st.key.as_ref().unwrap())?;
+    Ok(())
+}
+
+/// Permanently remove all soft-deleted entries.
+#[tauri::command]
+pub fn purge_deleted(state: State<'_, AppState>) -> Result<(), String> {
+    let mut st = state.0.lock().map_err(|e| e.to_string())?;
+    if st.key.is_none() {
+        return Err("Vault is locked".into());
+    }
+
+    st.data.entries.retain(|e| !e.deleted);
+    persist(&st, st.key.as_ref().unwrap())?;
+    Ok(())
+}
+
+/// Update last_used_at when user copies/views a password.
+#[tauri::command]
+pub fn touch_entry(id: String, state: State<'_, AppState>) -> Result<(), String> {
+    let mut st = state.0.lock().map_err(|e| e.to_string())?;
+    if st.key.is_none() {
+        return Err("Vault is locked".into());
+    }
+
+    if let Some(entry) = st.data.entries.iter_mut().find(|e| e.id == id) {
+        entry.last_used_at = Some(chrono_now());
+    } else {
+        return Err("Entry not found".into());
+    }
+    persist(&st, st.key.as_ref().unwrap())?;
+    Ok(())
+}
+
+/// Re-encrypt the vault under a new master password.
+#[tauri::command]
+pub fn change_master_password(
+    current_password: String,
+    new_password: String,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    if new_password.len() < 8 {
+        return Err("New password must be at least 8 characters".into());
+    }
+
+    let mut st = state.0.lock().map_err(|e| e.to_string())?;
+    if st.key.is_none() {
+        return Err("Vault is locked".into());
+    }
+
+    let raw = fs::read_to_string(&st.path).map_err(|e| e.to_string())?;
+    let vault: EncryptedVault = serde_json::from_str(&raw).map_err(|e| e.to_string())?;
+    let old_salt = B64.decode(&vault.salt).map_err(|e| e.to_string())?;
+    let verify_key =
+        crypto::derive_key(&current_password, &old_salt).map_err(|e| e.to_string())?;
+    let _ = crypto::decrypt(&verify_key, &vault.data)
+        .map_err(|_| "Current password is incorrect".to_string())?;
+
+    let new_salt = crypto::generate_salt();
+    let new_key = crypto::derive_key(&new_password, &new_salt).map_err(|e| e.to_string())?;
+
+    let plaintext = serde_json::to_vec(&st.data).map_err(|e| e.to_string())?;
+    let encrypted = crypto::encrypt(&new_key, &plaintext).map_err(|e| e.to_string())?;
+
+    let new_vault = EncryptedVault {
+        version: 1,
+        salt: B64.encode(new_salt),
+        data: encrypted,
+    };
+    let json = serde_json::to_string_pretty(&new_vault).map_err(|e| e.to_string())?;
+    fs::write(&st.path, json).map_err(|e| e.to_string())?;
+
+    if let Some(mut old) = st.key.take() {
+        old.zeroize();
+    }
+    st.key = Some(new_key);
+    Ok(())
+}
+
+/// Return the raw encrypted vault file contents (for backup download).
+#[tauri::command]
+pub fn export_vault(state: State<'_, AppState>) -> Result<String, String> {
+    let st = state.0.lock().map_err(|e| e.to_string())?;
+    if st.key.is_none() {
+        return Err("Vault is locked".into());
+    }
+    if !st.path.exists() {
+        return Err("No vault file found".into());
+    }
+    fs::read_to_string(&st.path).map_err(|e| e.to_string())
+}
+
+/// Replace the vault file with imported encrypted data. Caller must lock and re-unlock.
+#[tauri::command]
+pub fn import_vault(data: String, state: State<'_, AppState>) -> Result<(), String> {
+    let vault: EncryptedVault =
+        serde_json::from_str(&data).map_err(|_| "Invalid vault file format".to_string())?;
+    if vault.version == 0 || vault.salt.is_empty() || vault.data.is_empty() {
+        return Err("Invalid vault file".into());
+    }
+
+    let mut st = state.0.lock().map_err(|e| e.to_string())?;
+    ensure_parent(&st.path)?;
+    fs::write(&st.path, data).map_err(|e| e.to_string())?;
+
+    if let Some(mut key) = st.key.take() {
+        key.zeroize();
+    }
+    st.data = VaultData::default();
+    Ok(())
+}
+
 /// Cryptographically secure password / passphrase generator.
-///
-/// - Uses `OsRng` (OS entropy: /dev/urandom, BCryptGenRandom, etc.)
-/// - Random mode follows NIST SP 800-63B spirit (min 12 chars, mixed charset)
-/// - Passphrase mode: Diceware-style from the full EFF long wordlist (7776 words)
 #[tauri::command]
 pub fn generate_password(
     mode: Option<String>,
@@ -204,12 +373,9 @@ pub fn generate_password(
         return generate_passphrase(word_count);
     }
 
-    // Random password mode
-    let len = length.unwrap_or(20).clamp(12, 128); // NIST-aligned minimum
+    let len = length.unwrap_or(20).clamp(12, 128);
 
     let mut charset = String::from("abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789");
-    // Default already excludes some ambiguous (0/O, 1/l/I) for better usability.
-    // If exclude_ambiguous is false we add the rest back for maximum entropy.
     if !exclude_ambiguous {
         charset.push_str("0OlI1");
     }
@@ -232,8 +398,6 @@ fn generate_passphrase(word_count: usize) -> String {
     use rand::rngs::OsRng;
     use rand::RngCore;
 
-    // Full EFF long wordlist (7776 words), embedded at compile time.
-    // One word per line in eff_wordlist.txt — no dice codes.
     const WORDLIST_RAW: &str = include_str!("eff_wordlist.txt");
 
     let words: Vec<&str> = WORDLIST_RAW
@@ -251,38 +415,4 @@ fn generate_passphrase(word_count: usize) -> String {
     }
 
     chosen.join("-")
-}
-
-fn persist(st: &VaultState, key: &MasterKey) -> Result<(), String> {
-    let plaintext = serde_json::to_vec(&st.data).map_err(|e| e.to_string())?;
-    let encrypted = crypto::encrypt(key, &plaintext).map_err(|e| e.to_string())?;
-
-    let salt = if st.path.exists() {
-        let raw = fs::read_to_string(&st.path).unwrap_or_default();
-        if let Ok(v) = serde_json::from_str::<EncryptedVault>(&raw) {
-            v.salt
-        } else {
-            B64.encode(crypto::generate_salt())
-        }
-    } else {
-        B64.encode(crypto::generate_salt())
-    };
-
-    let vault = EncryptedVault {
-        version: 1,
-        salt,
-        data: encrypted,
-    };
-    ensure_parent(&st.path)?;
-    let json = serde_json::to_string_pretty(&vault).map_err(|e| e.to_string())?;
-    fs::write(&st.path, json).map_err(|e| e.to_string())?;
-    Ok(())
-}
-
-fn chrono_now() -> i64 {
-    use std::time::{SystemTime, UNIX_EPOCH};
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_secs() as i64
 }
