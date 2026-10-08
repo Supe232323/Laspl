@@ -16,6 +16,12 @@ pub fn run() {
             vault::add_entry,
             vault::update_entry,
             vault::delete_entry,
+            vault::restore_entry,
+            vault::purge_deleted,
+            vault::touch_entry,
+            vault::change_master_password,
+            vault::export_vault,
+            vault::import_vault,
             vault::generate_password
         ])
         .run(tauri::generate_context!())
