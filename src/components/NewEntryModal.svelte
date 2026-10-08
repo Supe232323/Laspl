@@ -27,8 +27,46 @@
   let length = $state(20);
   let symbols = $state(true);
   let excludeAmbiguous = $state(false);
+  let separator = $state("-");
   let generating = $state(false);
   let dupOverride = $state(false);
+
+  const SEPARATORS = [
+    { value: "-", label: "-" },
+    { value: " ", label: "space" },
+    { value: ".", label: "." },
+    { value: "_", label: "_" },
+    { value: "", label: "none" },
+  ];
+
+  // Theoretical entropy from generator parameters (bits)
+  // EFF long list = 7776 words → log2(7776) ≈ 12.925 bits/word
+  const entropyBits = $derived.by(() => {
+    if (mode === "passphrase") {
+      return Math.round(length * 12.925);
+    }
+    // charset size estimate
+    let size = 50; // base without ambiguous
+    if (!excludeAmbiguous) size += 5;
+    if (symbols) size += 24;
+    return Math.round(length * Math.log2(size));
+  });
+
+  const entropyLabel = $derived.by(() => {
+    if (entropyBits >= 128) return "Excellent";
+    if (entropyBits >= 80) return "Strong";
+    if (entropyBits >= 60) return "Good";
+    if (entropyBits >= 40) return "Fair";
+    return "Weak";
+  });
+
+  const entropyColor = $derived.by(() => {
+    if (entropyBits >= 128) return "bg-emerald-500";
+    if (entropyBits >= 80) return "bg-green-500";
+    if (entropyBits >= 60) return "bg-yellow-500";
+    if (entropyBits >= 40) return "bg-orange-500";
+    return "bg-red-500";
+  });
 
   const strength = $derived(scorePassword(password));
   const dups = $derived(findDuplicatePasswords(password, $entries));
@@ -42,6 +80,7 @@
         length,
         symbols,
         excludeAmbiguous,
+        separator,
       });
     } catch (e) {
       console.error("Generator failed:", e);
@@ -98,6 +137,7 @@
           <button onclick={gen} disabled={generating} class="px-3 py-2 rounded-lg bg-sn-accent text-white text-sm hover:bg-sn-accent-hover disabled:opacity-60">{generating ? "…" : "Generate"}</button>
         </div>
 
+        <!-- Strength (heuristic) -->
         {#if password}
           <div class="mt-2 flex items-center gap-2">
             <div class="flex-1 h-1.5 rounded-full bg-sn-bg overflow-hidden flex gap-0.5">
@@ -108,6 +148,17 @@
             <span class="text-xs text-sn-text-muted w-12 text-right">{strength.label}</span>
           </div>
         {/if}
+
+        <!-- Entropy meter (theoretical from generator params) -->
+        <div class="mt-2 flex items-center gap-2">
+          <div class="flex-1 h-1.5 rounded-full bg-sn-bg overflow-hidden">
+            <div
+              class="h-full rounded-full transition-all {entropyColor}"
+              style="width: {Math.min(100, (entropyBits / 128) * 100)}%"
+            ></div>
+          </div>
+          <span class="text-xs text-sn-text-muted whitespace-nowrap">{entropyBits} bit · {entropyLabel}</span>
+        </div>
 
         {#if dups.length > 0}
           <p class="mt-2 text-xs text-yellow-400">
@@ -126,9 +177,19 @@
             <input type="range" min={mode === "passphrase" ? 4 : 12} max={mode === "passphrase" ? 8 : 64} bind:value={length} class="w-20" />
             {length}{mode === "passphrase" ? " words" : " chars"}
           </label>
+
           {#if mode === "password"}
             <label class="flex items-center gap-1 cursor-pointer"><input type="checkbox" bind:checked={symbols} /> Symbols</label>
             <label class="flex items-center gap-1 cursor-pointer"><input type="checkbox" bind:checked={excludeAmbiguous} /> No ambiguous</label>
+          {:else}
+            <label class="flex items-center gap-1">
+              Sep
+              <select bind:value={separator} class="bg-sn-bg border border-sn-border rounded px-1.5 py-0.5 text-sn-text">
+                {#each SEPARATORS as s}
+                  <option value={s.value}>{s.label}</option>
+                {/each}
+              </select>
+            </label>
           {/if}
         </div>
       </div>
