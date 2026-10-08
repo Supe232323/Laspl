@@ -21,8 +21,9 @@
     <div class="relative">
       <input
         type="text"
+        data-search-input
         bind:value={$searchQuery}
-        placeholder="Search…"
+        placeholder="Search… ⌘K"
         class="w-full pl-9 pr-3 py-2 text-sm rounded-lg bg-sn-bg-secondary border border-sn-border
                text-sn-text placeholder-sn-text-muted focus:outline-none focus:ring-1 focus:ring-sn-accent"
       />
