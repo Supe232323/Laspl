@@ -1,7 +1,8 @@
 use crate::crypto::{self, EncryptedVault, MasterKey};
 use base64::{engine::general_purpose::STANDARD as B64, Engine};
 use serde::{Deserialize, Serialize};
-use std::fs;
+use std::fs::{self, File};
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use tauri::State;
@@ -60,13 +61,68 @@ fn ensure_parent(path: &Path) -> Result<(), String> {
     Ok(())
 }
 
-/// Unix timestamp in **milliseconds** (matches JS Date.now()).
+fn bak_path(path: &Path) -> PathBuf {
+    path.with_extension("laspl.bak")
+}
+
+fn tmp_path(path: &Path) -> PathBuf {
+    path.with_extension("laspl.tmp")
+}
+
+/// Atomic write: write tmp → fsync → backup existing → rename tmp over target.
+fn atomic_write(path: &Path, contents: &str) -> Result<(), String> {
+    ensure_parent(path)?;
+    let tmp = tmp_path(path);
+    let bak = bak_path(path);
+
+    {
+        let mut f = File::create(&tmp).map_err(|e| format!("Failed to create temp vault: {e}"))?;
+        f.write_all(contents.as_bytes())
+            .map_err(|e| format!("Failed to write temp vault: {e}"))?;
+        f.sync_all()
+            .map_err(|e| format!("Failed to sync temp vault: {e}"))?;
+    }
+
+    if path.exists() {
+        let _ = fs::remove_file(&bak);
+        fs::rename(path, &bak).map_err(|e| format!("Failed to backup vault: {e}"))?;
+    }
+
+    fs::rename(&tmp, path).map_err(|e| format!("Failed to commit vault: {e}"))?;
+    Ok(())
+}
+
 fn chrono_now() -> i64 {
     use std::time::{SystemTime, UNIX_EPOCH};
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap()
         .as_millis() as i64
+}
+
+fn looks_like_seconds(ts: i64) -> bool {
+    ts > 0 && ts < 1_000_000_000_000
+}
+
+fn migrate_timestamps(data: &mut VaultData) -> bool {
+    let mut changed = false;
+    for e in &mut data.entries {
+        if looks_like_seconds(e.created_at) {
+            e.created_at *= 1000;
+            changed = true;
+        }
+        if looks_like_seconds(e.updated_at) {
+            e.updated_at *= 1000;
+            changed = true;
+        }
+        if let Some(lu) = e.last_used_at {
+            if looks_like_seconds(lu) {
+                e.last_used_at = Some(lu * 1000);
+                changed = true;
+            }
+        }
+    }
+    changed
 }
 
 fn persist(st: &VaultState, key: &MasterKey) -> Result<(), String> {
@@ -89,10 +145,19 @@ fn persist(st: &VaultState, key: &MasterKey) -> Result<(), String> {
         salt,
         data: encrypted,
     };
-    ensure_parent(&st.path)?;
     let json = serde_json::to_string_pretty(&vault).map_err(|e| e.to_string())?;
-    fs::write(&st.path, json).map_err(|e| e.to_string())?;
-    Ok(())
+    atomic_write(&st.path, &json)
+}
+
+fn try_load_vault(path: &Path, password: &str) -> Result<(MasterKey, VaultData), String> {
+    let raw = fs::read_to_string(path).map_err(|e| e.to_string())?;
+    let vault: EncryptedVault = serde_json::from_str(&raw).map_err(|e| e.to_string())?;
+    let salt = B64.decode(&vault.salt).map_err(|e| e.to_string())?;
+    let key = crypto::derive_key(password, &salt).map_err(|e| e.to_string())?;
+    let plaintext =
+        crypto::decrypt(&key, &vault.data).map_err(|_| "Wrong password".to_string())?;
+    let data: VaultData = serde_json::from_slice(&plaintext).map_err(|e| e.to_string())?;
+    Ok((key, data))
 }
 
 #[tauri::command]
@@ -103,6 +168,24 @@ pub fn unlock_vault(
     let mut st = state.0.lock().map_err(|e| e.to_string())?;
 
     if !st.path.exists() {
+        let bak = bak_path(&st.path);
+        if bak.exists() {
+            match try_load_vault(&bak, &password) {
+                Ok((key, mut data)) => {
+                    let migrated = migrate_timestamps(&mut data);
+                    st.key = Some(key);
+                    st.data = data;
+                    if migrated {
+                        let _ = persist(&st, st.key.as_ref().unwrap());
+                    }
+                    let _ = fs::copy(&bak, &st.path);
+                    return Ok(st.data.entries.clone());
+                }
+                Err(e) if e == "Wrong password" => return Err(e),
+                Err(_) => {}
+            }
+        }
+
         let salt = crypto::generate_salt();
         let key = crypto::derive_key(&password, &salt).map_err(|e| e.to_string())?;
         let data = VaultData::default();
@@ -114,27 +197,47 @@ pub fn unlock_vault(
             salt: B64.encode(salt),
             data: encrypted,
         };
-        ensure_parent(&st.path)?;
         let json = serde_json::to_string_pretty(&vault).map_err(|e| e.to_string())?;
-        fs::write(&st.path, json).map_err(|e| e.to_string())?;
+        atomic_write(&st.path, &json)?;
 
         st.key = Some(key);
         st.data = data;
         return Ok(st.data.entries.clone());
     }
 
-    let raw = fs::read_to_string(&st.path).map_err(|e| e.to_string())?;
-    let vault: EncryptedVault = serde_json::from_str(&raw).map_err(|e| e.to_string())?;
+    let loaded = match try_load_vault(&st.path, &password) {
+        Ok(v) => v,
+        Err(e) if e == "Wrong password" => {
+            let main_raw = fs::read_to_string(&st.path).unwrap_or_default();
+            if serde_json::from_str::<EncryptedVault>(&main_raw).is_err() {
+                let bak = bak_path(&st.path);
+                if bak.exists() {
+                    try_load_vault(&bak, &password).map_err(|_| e)?
+                } else {
+                    return Err(e);
+                }
+            } else {
+                return Err(e);
+            }
+        }
+        Err(e) => {
+            let bak = bak_path(&st.path);
+            if bak.exists() {
+                try_load_vault(&bak, &password)
+                    .map_err(|_| format!("{e} (backup also failed)"))?
+            } else {
+                return Err(e);
+            }
+        }
+    };
 
-    let salt = B64.decode(&vault.salt).map_err(|e| e.to_string())?;
-    let key = crypto::derive_key(&password, &salt).map_err(|e| e.to_string())?;
-
-    let plaintext =
-        crypto::decrypt(&key, &vault.data).map_err(|_| "Wrong password".to_string())?;
-    let data: VaultData = serde_json::from_slice(&plaintext).map_err(|e| e.to_string())?;
-
+    let (key, mut data) = loaded;
+    let migrated = migrate_timestamps(&mut data);
     st.key = Some(key);
     st.data = data;
+    if migrated {
+        let _ = persist(&st, st.key.as_ref().unwrap());
+    }
     Ok(st.data.entries.clone())
 }
 
@@ -210,7 +313,6 @@ pub fn update_entry(entry: PasswordEntry, state: State<'_, AppState>) -> Result<
     Ok(())
 }
 
-/// Soft-delete: mark as deleted (moves to Trash).
 #[tauri::command]
 pub fn delete_entry(id: String, state: State<'_, AppState>) -> Result<(), String> {
     let mut st = state.0.lock().map_err(|e| e.to_string())?;
@@ -245,7 +347,6 @@ pub fn restore_entry(id: String, state: State<'_, AppState>) -> Result<(), Strin
     Ok(())
 }
 
-/// Permanently remove all soft-deleted entries.
 #[tauri::command]
 pub fn purge_deleted(state: State<'_, AppState>) -> Result<(), String> {
     let mut st = state.0.lock().map_err(|e| e.to_string())?;
@@ -258,7 +359,6 @@ pub fn purge_deleted(state: State<'_, AppState>) -> Result<(), String> {
     Ok(())
 }
 
-/// Update last_used_at when user copies/views a password.
 #[tauri::command]
 pub fn touch_entry(id: String, state: State<'_, AppState>) -> Result<(), String> {
     let mut st = state.0.lock().map_err(|e| e.to_string())?;
@@ -275,7 +375,6 @@ pub fn touch_entry(id: String, state: State<'_, AppState>) -> Result<(), String>
     Ok(())
 }
 
-/// Re-encrypt the vault under a new master password.
 #[tauri::command]
 pub fn change_master_password(
     current_password: String,
@@ -311,7 +410,7 @@ pub fn change_master_password(
         data: encrypted,
     };
     let json = serde_json::to_string_pretty(&new_vault).map_err(|e| e.to_string())?;
-    fs::write(&st.path, json).map_err(|e| e.to_string())?;
+    atomic_write(&st.path, &json)?;
 
     if let Some(mut old) = st.key.take() {
         old.zeroize();
@@ -320,7 +419,6 @@ pub fn change_master_password(
     Ok(())
 }
 
-/// Return the raw encrypted vault file contents (for backup download).
 #[tauri::command]
 pub fn export_vault(state: State<'_, AppState>) -> Result<String, String> {
     let st = state.0.lock().map_err(|e| e.to_string())?;
@@ -333,7 +431,6 @@ pub fn export_vault(state: State<'_, AppState>) -> Result<String, String> {
     fs::read_to_string(&st.path).map_err(|e| e.to_string())
 }
 
-/// Replace the vault file with imported encrypted data. Caller must lock and re-unlock.
 #[tauri::command]
 pub fn import_vault(data: String, state: State<'_, AppState>) -> Result<(), String> {
     let vault: EncryptedVault =
@@ -343,8 +440,7 @@ pub fn import_vault(data: String, state: State<'_, AppState>) -> Result<(), Stri
     }
 
     let mut st = state.0.lock().map_err(|e| e.to_string())?;
-    ensure_parent(&st.path)?;
-    fs::write(&st.path, data).map_err(|e| e.to_string())?;
+    atomic_write(&st.path, &data)?;
 
     if let Some(mut key) = st.key.take() {
         key.zeroize();
@@ -353,7 +449,6 @@ pub fn import_vault(data: String, state: State<'_, AppState>) -> Result<(), Stri
     Ok(())
 }
 
-/// Cryptographically secure password / passphrase generator.
 #[tauri::command]
 pub fn generate_password(
     mode: Option<String>,
@@ -415,4 +510,50 @@ fn generate_passphrase(word_count: usize) -> String {
     }
 
     chosen.join("-")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+
+    #[test]
+    fn atomic_write_creates_and_backs_up() {
+        let dir = std::env::temp_dir().join(format!("laspl-test-{}", Uuid::new_v4()));
+        fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("vault.laspl");
+
+        atomic_write(&path, "first").unwrap();
+        assert_eq!(fs::read_to_string(&path).unwrap(), "first");
+        assert!(!bak_path(&path).exists());
+
+        atomic_write(&path, "second").unwrap();
+        assert_eq!(fs::read_to_string(&path).unwrap(), "second");
+        assert_eq!(fs::read_to_string(bak_path(&path)).unwrap(), "first");
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn migrate_seconds_to_millis() {
+        let mut data = VaultData {
+            entries: vec![PasswordEntry {
+                id: "1".into(),
+                title: "t".into(),
+                username: "u".into(),
+                password: "p".into(),
+                url: None,
+                notes: None,
+                favorite: false,
+                category: None,
+                deleted: false,
+                created_at: 1_700_000_000,
+                updated_at: 1_700_000_001,
+                last_used_at: Some(1_700_000_002),
+            }],
+        };
+        assert!(migrate_timestamps(&mut data));
+        assert!(data.entries[0].created_at > 1_000_000_000_000);
+        assert!(!migrate_timestamps(&mut data));
+    }
 }
