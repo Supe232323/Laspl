@@ -1,7 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { PasswordEntry } from "./types";
 
-/** Map Rust snake_case → frontend camelCase */
 function mapEntry(raw: any): PasswordEntry {
   return {
     id: raw.id,
@@ -17,6 +16,10 @@ function mapEntry(raw: any): PasswordEntry {
     updatedAt: raw.updated_at,
     lastUsedAt: raw.last_used_at ?? undefined,
   };
+}
+
+export async function vaultExists(): Promise<boolean> {
+  return invoke<boolean>("vault_exists");
 }
 
 export async function unlockVault(password: string): Promise<PasswordEntry[]> {
@@ -130,7 +133,6 @@ export async function generatePassword(
   });
 }
 
-/** Copy text to clipboard and clear after `clearAfterMs` (default 30s). */
 export async function copyWithClear(
   text: string,
   clearAfterMs = 30_000
@@ -144,7 +146,7 @@ export async function copyWithClear(
           await navigator.clipboard.writeText("");
         }
       } catch {
-        // Clipboard read may be denied — ignore
+        // ignore
       }
     }, clearAfterMs);
   }
