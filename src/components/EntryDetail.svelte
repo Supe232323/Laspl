@@ -68,7 +68,7 @@
     try {
       await updateEntry(updated);
     } catch {
-      // offline / demo fallback
+      // ignore
     }
     entries.update((list) =>
       list.map((e) => (e.id === updated.id ? updated : e))
@@ -96,6 +96,16 @@
   function setGenMode(m: GenerateMode) {
     genMode = m;
     genLength = m === "passphrase" ? 5 : 20;
+  }
+
+  async function openSite() {
+    if (!$selectedEntry?.url) return;
+    let href = $selectedEntry.url;
+    if (!/^https?:\/\//i.test(href)) href = "https://" + href;
+    window.open(href, "_blank", "noopener");
+    if ($selectedEntry.username) {
+      await copy($selectedEntry.username, "username");
+    }
   }
 
   async function copy(text: string, label: string) {
@@ -141,7 +151,7 @@
     try {
       await updateEntry(updated);
     } catch {
-      // demo mode
+      // ignore
     }
     entries.update((list) =>
       list.map((e) => (e.id === updated.id ? updated : e))
@@ -154,7 +164,7 @@
     try {
       await deleteEntry(id);
     } catch {
-      // demo
+      // ignore
     }
     entries.update((list) =>
       list.map((e) =>
@@ -171,7 +181,7 @@
     try {
       await restoreEntry(id);
     } catch {
-      // demo
+      // ignore
     }
     entries.update((list) =>
       list.map((e) =>
@@ -432,15 +442,24 @@
             <label class="block text-xs font-medium text-sn-text-muted uppercase tracking-wider mb-1.5">
               Website
             </label>
-            <a
-              href={$selectedEntry.url}
-              target="_blank"
-              rel="noopener"
-              class="block px-3 py-2.5 rounded-lg bg-sn-bg-secondary border border-sn-border
-                     text-sn-accent hover:underline truncate"
-            >
-              {$selectedEntry.url}
-            </a>
+            <div class="flex items-center gap-2">
+              <a
+                href={$selectedEntry.url}
+                target="_blank"
+                rel="noopener"
+                class="flex-1 px-3 py-2.5 rounded-lg bg-sn-bg-secondary border border-sn-border
+                       text-sn-accent hover:underline truncate"
+              >
+                {$selectedEntry.url}
+              </a>
+              <button
+                class="px-3 py-2.5 rounded-lg bg-sn-accent text-white hover:bg-sn-accent-hover transition text-sm whitespace-nowrap"
+                onclick={openSite}
+                title="Open site and copy username"
+              >
+                Open
+              </button>
+            </div>
           </div>
         {/if}
 
