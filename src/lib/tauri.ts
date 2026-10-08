@@ -116,6 +116,7 @@ export async function generatePassword(
     length?: number;
     symbols?: boolean;
     excludeAmbiguous?: boolean;
+    separator?: string;
   } = {}
 ): Promise<string> {
   const {
@@ -123,6 +124,7 @@ export async function generatePassword(
     length = mode === "passphrase" ? 5 : 20,
     symbols = true,
     excludeAmbiguous = false,
+    separator = "-",
   } = opts;
 
   return invoke<string>("generate_password", {
@@ -130,6 +132,7 @@ export async function generatePassword(
     length,
     symbols,
     excludeAmbiguous,
+    separator,
   });
 }
 
