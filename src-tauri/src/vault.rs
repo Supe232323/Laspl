@@ -454,12 +454,15 @@ pub fn import_vault(data: String, state: State<'_, AppState>) -> Result<(), Stri
     Ok(())
 }
 
+/// Cryptographically secure password / passphrase generator.
+/// Uses OsRng (OS entropy). Passphrase mode uses the full EFF long wordlist (7776 words).
 #[tauri::command]
 pub fn generate_password(
     mode: Option<String>,
     length: Option<usize>,
     symbols: Option<bool>,
     exclude_ambiguous: Option<bool>,
+    separator: Option<String>,
 ) -> String {
     use rand::rngs::OsRng;
     use rand::RngCore;
@@ -470,7 +473,8 @@ pub fn generate_password(
 
     if mode == "passphrase" {
         let word_count = length.unwrap_or(5).clamp(4, 10);
-        return generate_passphrase(word_count);
+        let sep = separator.unwrap_or_else(|| "-".into());
+        return generate_passphrase(word_count, &sep);
     }
 
     let len = length.unwrap_or(20).clamp(12, 128);
@@ -494,7 +498,7 @@ pub fn generate_password(
     result
 }
 
-fn generate_passphrase(word_count: usize) -> String {
+fn generate_passphrase(word_count: usize, separator: &str) -> String {
     use rand::rngs::OsRng;
     use rand::RngCore;
 
@@ -514,7 +518,7 @@ fn generate_passphrase(word_count: usize) -> String {
         chosen.push(words[idx]);
     }
 
-    chosen.join("-")
+    chosen.join(separator)
 }
 
 #[cfg(test)]
