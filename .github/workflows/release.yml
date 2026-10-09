@@ -2,14 +2,47 @@ name: Release
 
 on:
   push:
-    tags:
-      - "v*"
+    branches: [main]
+    paths:
+      - "package.json"
+      - "src-tauri/tauri.conf.json"
+      - "src-tauri/Cargo.toml"
 
 permissions:
   contents: write
 
 jobs:
+  prepare:
+    name: Read version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
+      tag: ${{ steps.ver.outputs.tag }}
+      should_release: ${{ steps.ver.outputs.should_release }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Read version from package.json
+        id: ver
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          TAG="v${VERSION}"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists — skip release"
+            echo "should_release=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "New version $TAG — will release"
+            echo "should_release=true" >> "$GITHUB_OUTPUT"
+          fi
+
   publish-tauri:
+    needs: prepare
+    if: needs.prepare.outputs.should_release == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -52,8 +85,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: "Laspl ${{ github.ref_name }}"
+          tagName: ${{ needs.prepare.outputs.tag }}
+          releaseName: "Laspl ${{ needs.prepare.outputs.tag }}"
           releaseBody: |
             **Verify downloads** with `SHA256SUMS` attached to this release.
 
@@ -69,13 +102,14 @@ jobs:
 
   checksums:
     name: Upload SHA256SUMS
-    needs: publish-tauri
+    needs: [prepare, publish-tauri]
+    if: needs.prepare.outputs.should_release == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Download release assets
         uses: robinraju/release-downloader@v1
         with:
-          tag: ${{ github.ref_name }}
+          tag: ${{ needs.prepare.outputs.tag }}
           fileName: "*"
           tarBall: false
           zipBall: false
@@ -93,7 +127,7 @@ jobs:
       - name: Upload SHA256SUMS to release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
+          tag_name: ${{ needs.prepare.outputs.tag }}
           files: assets/SHA256SUMS
           draft: false
         env:
