@@ -7,6 +7,7 @@
     importVault,
     lockVault,
   } from "../lib/tauri";
+  import { i18n, locale, LOCALES, type Locale } from "../lib/i18n";
 
   const dispatch = createEventDispatcher<{ close: void }>();
 
@@ -22,33 +23,33 @@
   let importStatus = $state("");
   let importData = $state("");
 
-  const lockOptions = [
-    { label: "1 minute", value: 60_000 },
-    { label: "5 minutes", value: 5 * 60_000 },
-    { label: "15 minutes", value: 15 * 60_000 },
-    { label: "30 minutes", value: 30 * 60_000 },
-    { label: "Never", value: 0 },
-  ];
+  const lockOptions = $derived([
+    { label: $i18n("settings.lock.1m"), value: 60_000 },
+    { label: $i18n("settings.lock.5m"), value: 5 * 60_000 },
+    { label: $i18n("settings.lock.15m"), value: 15 * 60_000 },
+    { label: $i18n("settings.lock.30m"), value: 30 * 60_000 },
+    { label: $i18n("settings.lock.never"), value: 0 },
+  ]);
 
   async function changePassword() {
     pwError = "";
     pwSuccess = "";
     if (!currentPw || !newPw) {
-      pwError = "Fill in all fields";
+      pwError = $i18n("settings.pwFill");
       return;
     }
     if (newPw.length < 8) {
-      pwError = "New password must be at least 8 characters";
+      pwError = $i18n("settings.pwMin");
       return;
     }
     if (newPw !== confirmPw) {
-      pwError = "New passwords do not match";
+      pwError = $i18n("settings.pwMatch");
       return;
     }
     pwLoading = true;
     try {
       await changeMasterPassword(currentPw, newPw);
-      pwSuccess = "Master password changed";
+      pwSuccess = $i18n("settings.pwChanged");
       currentPw = "";
       newPw = "";
       confirmPw = "";
@@ -58,7 +59,7 @@
           ? e
           : e instanceof Error
             ? e.message
-            : "Failed to change password";
+            : $i18n("settings.pwMatch");
     } finally {
       pwLoading = false;
     }
@@ -75,7 +76,7 @@
       a.download = `laspl-backup-${new Date().toISOString().slice(0, 10)}.laspl`;
       a.click();
       URL.revokeObjectURL(url);
-      exportStatus = "Backup downloaded";
+      exportStatus = $i18n("settings.exportOk");
     } catch (e: unknown) {
       exportStatus =
         typeof e === "string"
@@ -89,12 +90,12 @@
   async function doImport() {
     importStatus = "";
     if (!importData.trim()) {
-      importStatus = "Paste vault data or choose a file";
+      importStatus = $i18n("settings.importEmpty");
       return;
     }
     try {
       await importVault(importData.trim());
-      importStatus = "Imported — lock and unlock with the vault's master password";
+      importStatus = $i18n("settings.importOk");
       try {
         await lockVault();
       } catch {
@@ -124,12 +125,17 @@
     };
     reader.readAsText(file);
   }
+
+  function onLocaleChange(e: Event) {
+    const v = (e.target as HTMLSelectElement).value as Locale;
+    locale.set(v);
+  }
 </script>
 
 <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-  <div class="w-full max-w-md mx-4 rounded-xl bg-sn-bg-secondary border border-sn-border shadow-2xl">
-    <div class="px-5 py-4 border-b border-sn-border flex items-center justify-between">
-      <h2 class="text-lg font-semibold text-sn-text">Settings</h2>
+  <div class="w-full max-w-md mx-4 rounded-xl bg-sn-bg-secondary border border-sn-border shadow-2xl max-h-[90vh] overflow-y-auto">
+    <div class="px-5 py-4 border-b border-sn-border flex items-center justify-between sticky top-0 bg-sn-bg-secondary">
+      <h2 class="text-lg font-semibold text-sn-text">{$i18n("settings.title")}</h2>
       <button
         class="text-sn-text-muted hover:text-sn-text text-xl leading-none"
         onclick={() => dispatch("close")}
@@ -146,7 +152,7 @@
                  : 'text-sn-text-muted hover:text-sn-text'}"
         onclick={() => (tab = "security")}
       >
-        Security
+        {$i18n("settings.security")}
       </button>
       <button
         class="flex-1 py-2.5 text-sm transition
@@ -155,7 +161,7 @@
                  : 'text-sn-text-muted hover:text-sn-text'}"
         onclick={() => (tab = "backup")}
       >
-        Backup
+        {$i18n("settings.backup")}
       </button>
     </div>
 
@@ -163,7 +169,23 @@
       {#if tab === "security"}
         <div>
           <label class="block text-xs font-medium text-sn-text-muted uppercase mb-1.5">
-            Auto-lock after
+            {$i18n("settings.language")}
+          </label>
+          <select
+            class="w-full px-3 py-2 rounded-lg bg-sn-bg border border-sn-border text-sn-text
+                   focus:outline-none focus:ring-1 focus:ring-sn-accent"
+            value={$locale}
+            onchange={onLocaleChange}
+          >
+            {#each LOCALES as loc}
+              <option value={loc.id}>{loc.native}</option>
+            {/each}
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-xs font-medium text-sn-text-muted uppercase mb-1.5">
+            {$i18n("settings.autoLock")}
           </label>
           <select
             class="w-full px-3 py-2 rounded-lg bg-sn-bg border border-sn-border text-sn-text
@@ -179,26 +201,26 @@
         </div>
 
         <div class="border-t border-sn-border pt-4">
-          <h3 class="text-sm font-medium text-sn-text mb-3">Change master password</h3>
+          <h3 class="text-sm font-medium text-sn-text mb-3">{$i18n("settings.changePw")}</h3>
           <div class="space-y-3">
             <input
               type="password"
               bind:value={currentPw}
-              placeholder="Current password"
+              placeholder={$i18n("settings.currentPw")}
               class="w-full px-3 py-2 rounded-lg bg-sn-bg border border-sn-border text-sn-text
                      focus:outline-none focus:ring-1 focus:ring-sn-accent"
             />
             <input
               type="password"
               bind:value={newPw}
-              placeholder="New password"
+              placeholder={$i18n("settings.newPw")}
               class="w-full px-3 py-2 rounded-lg bg-sn-bg border border-sn-border text-sn-text
                      focus:outline-none focus:ring-1 focus:ring-sn-accent"
             />
             <input
               type="password"
               bind:value={confirmPw}
-              placeholder="Confirm new password"
+              placeholder={$i18n("settings.confirmPw")}
               class="w-full px-3 py-2 rounded-lg bg-sn-bg border border-sn-border text-sn-text
                      focus:outline-none focus:ring-1 focus:ring-sn-accent"
             />
@@ -214,21 +236,21 @@
               class="w-full py-2 rounded-lg bg-sn-accent text-white hover:bg-sn-accent-hover
                      transition disabled:opacity-60"
             >
-              {pwLoading ? "Changing…" : "Change password"}
+              {pwLoading ? $i18n("settings.changing") : $i18n("settings.changeBtn")}
             </button>
           </div>
         </div>
       {:else}
         <div>
-          <h3 class="text-sm font-medium text-sn-text mb-2">Export vault</h3>
+          <h3 class="text-sm font-medium text-sn-text mb-2">{$i18n("settings.export")}</h3>
           <p class="text-xs text-sn-text-muted mb-3">
-            Downloads an encrypted backup of your vault file. Keep it safe.
+            {$i18n("settings.exportHint")}
           </p>
           <button
             onclick={doExport}
             class="w-full py-2 rounded-lg bg-sn-accent text-white hover:bg-sn-accent-hover transition"
           >
-            Download backup
+            {$i18n("settings.exportBtn")}
           </button>
           {#if exportStatus}
             <p class="text-sm text-sn-text-muted mt-2">{exportStatus}</p>
@@ -236,9 +258,9 @@
         </div>
 
         <div class="border-t border-sn-border pt-4">
-          <h3 class="text-sm font-medium text-sn-text mb-2">Import vault</h3>
+          <h3 class="text-sm font-medium text-sn-text mb-2">{$i18n("settings.import")}</h3>
           <p class="text-xs text-sn-text-muted mb-3">
-            Replaces the current vault with a backup. You will need to unlock with the backup's master password.
+            {$i18n("settings.importHint")}
           </p>
           <input
             type="file"
@@ -250,7 +272,7 @@
           <textarea
             bind:value={importData}
             rows="3"
-            placeholder="Or paste vault JSON here…"
+            placeholder={$i18n("settings.importPaste")}
             class="w-full px-3 py-2 rounded-lg bg-sn-bg border border-sn-border text-sn-text text-xs
                    font-mono focus:outline-none focus:ring-1 focus:ring-sn-accent resize-none mb-2"
           ></textarea>
@@ -259,7 +281,7 @@
             class="w-full py-2 rounded-lg border border-sn-border text-sn-text
                    hover:bg-sn-bg transition"
           >
-            Import
+            {$i18n("settings.importBtn")}
           </button>
           {#if importStatus}
             <p class="text-sm text-sn-text-muted mt-2">{importStatus}</p>
