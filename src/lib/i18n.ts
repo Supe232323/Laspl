@@ -855,7 +855,7 @@ const zh: Dict = {
   "settings.pwMin": "\u65b0\u5bc6\u7801\u81f3\u5c11 8 \u4e2a\u5b57\u7b26",
   "settings.pwMatch": "\u5bc6\u7801\u4e0d\u4e00\u81f4",
   "settings.export": "\u5bfc\u51fa\u4fdd\u9669\u5e93",
-  "settings.exportHint": "\u4e0b\u8f7d\u52a0\u5bc6\u5907\u4efd\u3002\u8bf7\u妥善\u4fdd\u7ba1\u3002".replace("妥善", "\u59a5\u5584"),
+  "settings.exportHint": "\u4e0b\u8f7d\u52a0\u5bc6\u5907\u4efd\u3002\u8bf7\u59a5\u5584\u4fdd\u7ba1\u3002",
   "settings.exportBtn": "\u4e0b\u8f7d\u5907\u4efd",
   "settings.exportOk": "\u5907\u4efd\u5df2\u4e0b\u8f7d",
   "settings.import": "\u5bfc\u5165\u4fdd\u9669\u5e93",
