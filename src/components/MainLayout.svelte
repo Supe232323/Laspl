@@ -14,6 +14,7 @@
     bumpActivity,
   } from "../lib/store";
   import { addEntry, lockVault, copyWithClear } from "../lib/tauri";
+  import { i18n } from "../lib/i18n";
 
   let showNew = $state(false);
   let showSettings = $state(false);
@@ -137,9 +138,9 @@
 >
   {#if lockLabel}
     <div class="h-6 flex items-center justify-center text-[11px] text-sn-text-muted bg-sn-bg-secondary border-b border-sn-border">
-      Auto-lock in {lockLabel}
+      {$i18n("layout.autoLock", { time: lockLabel })}
       <span class="mx-2 text-sn-border">·</span>
-      <span class="text-sn-text-muted/80">⌘K search · ⌘N new · ⌘L lock · ⌘C copy password</span>
+      <span class="text-sn-text-muted/80">{$i18n("layout.shortcuts")}</span>
     </div>
   {/if}
 
