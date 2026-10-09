@@ -1,6 +1,7 @@
 <script lang="ts">
   import { filteredEntries, selectedId, searchQuery } from "../lib/store";
   import type { PasswordEntry } from "../lib/types";
+  import { i18n, locale } from "../lib/i18n";
 
   function select(entry: PasswordEntry) {
     selectedId.set(entry.id);
@@ -8,7 +9,8 @@
 
   function formatDate(ts: number) {
     if (!ts) return "";
-    return new Date(ts).toLocaleDateString(undefined, {
+    const loc = $locale === "zh" ? "zh-CN" : $locale;
+    return new Date(ts).toLocaleDateString(loc, {
       month: "short",
       day: "numeric",
       year: "numeric",
@@ -23,7 +25,7 @@
         type="text"
         data-search-input
         bind:value={$searchQuery}
-        placeholder="Search… ⌘K"
+        placeholder={$i18n("list.search")}
         class="w-full pl-9 pr-3 py-2 text-sm rounded-lg bg-sn-bg-secondary border border-sn-border
                text-sn-text placeholder-sn-text-muted focus:outline-none focus:ring-1 focus:ring-sn-accent"
       />
@@ -59,7 +61,7 @@
       </button>
     {:else}
       <div class="p-8 text-center text-sn-text-muted text-sm">
-        No items found
+        {$i18n("list.empty")}
       </div>
     {/each}
   </div>
