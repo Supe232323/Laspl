@@ -4,13 +4,13 @@ export type Locale = "en" | "es" | "fr" | "de" | "pt" | "zh" | "ja" | "hi" | "sw
 
 export const LOCALES: { id: Locale; label: string; native: string }[] = [
   { id: "en", label: "English", native: "English" },
-  { id: "es", label: "Spanish", native: "Espa\u00f1ol" },
-  { id: "fr", label: "French", native: "Fran\u00e7ais" },
+  { id: "es", label: "Spanish", native: "Español" },
+  { id: "fr", label: "French", native: "Français" },
   { id: "de", label: "German", native: "Deutsch" },
-  { id: "pt", label: "Portuguese", native: "Portugu\u00eas" },
-  { id: "zh", label: "Chinese", native: "\u7b80\u4f53\u4e2d\u6587" },
-  { id: "ja", label: "Japanese", native: "\u65e5\u672c\u8a9e" },
-  { id: "hi", label: "Hindi", native: "\u0939\u093f\u0928\u094d\u0926\u0940" },
+  { id: "pt", label: "Portuguese", native: "Português" },
+  { id: "zh", label: "Chinese", native: "简体中文" },
+  { id: "ja", label: "Japanese", native: "日本語" },
+  { id: "hi", label: "Hindi", native: "हिन्दी" },
   { id: "sw", label: "Swahili", native: "Kiswahili" },
 ];
 
