@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import { isUnlocked, entries } from "../lib/store";
   import { unlockVault, vaultExists } from "../lib/tauri";
+  import { i18n } from "../lib/i18n";
 
   let password = $state("");
   let confirmPassword = $state("");
@@ -21,16 +22,16 @@
 
   async function submit() {
     if (!password.trim()) {
-      error = isCreate ? "Choose a master password" : "Enter your master password";
+      error = isCreate ? $i18n("unlock.error.choose") : $i18n("unlock.error.enter");
       return;
     }
     if (isCreate) {
       if (password.length < 8) {
-        error = "Use at least 8 characters";
+        error = $i18n("unlock.error.min");
         return;
       }
       if (password !== confirmPassword) {
-        error = "Passwords do not match";
+        error = $i18n("unlock.error.match");
         return;
       }
     }
@@ -52,7 +53,7 @@
           ? e
           : e instanceof Error
             ? e.message
-            : "Wrong password or vault error";
+            : $i18n("unlock.error.wrong");
     } finally {
       loading = false;
     }
@@ -72,14 +73,14 @@
           <path d="M7 11V7a5 5 0 0110 0v4" />
         </svg>
       </div>
-      <h1 class="text-3xl font-semibold tracking-tight text-sn-text">Laspl</h1>
+      <h1 class="text-3xl font-semibold tracking-tight text-sn-text">{$i18n("app.name")}</h1>
       <p class="mt-2 text-sn-text-secondary text-sm">
         {#if exists === null}
-          Loading…
+          {$i18n("unlock.loading")}
         {:else if isCreate}
-          Create your vault
+          {$i18n("unlock.title.create")}
         {:else}
-          Unlock your vault
+          {$i18n("unlock.title.unlock")}
         {/if}
       </p>
     </div>
@@ -88,8 +89,7 @@
       <div class="space-y-4">
         {#if isCreate}
           <p class="text-xs text-sn-text-muted text-center leading-relaxed">
-            Pick a strong master password. It encrypts your vault locally and cannot be recovered if lost.
-            A backup copy (<span class="font-mono">vault.laspl.bak</span>) is kept after each save.
+            {$i18n("unlock.hint.create")}
           </p>
         {/if}
 
@@ -97,7 +97,7 @@
           type="password"
           bind:value={password}
           onkeydown={handleKey}
-          placeholder={isCreate ? "Master password (min 8)" : "Master password"}
+          placeholder={isCreate ? $i18n("unlock.placeholder.passwordMin") : $i18n("unlock.placeholder.password")}
           class="w-full px-4 py-3 rounded-lg bg-sn-bg-secondary border border-sn-border
                  text-sn-text placeholder-sn-text-muted focus:outline-none
                  focus:ring-2 focus:ring-sn-accent focus:border-transparent transition"
@@ -109,7 +109,7 @@
             type="password"
             bind:value={confirmPassword}
             onkeydown={handleKey}
-            placeholder="Confirm master password"
+            placeholder={$i18n("unlock.placeholder.confirm")}
             class="w-full px-4 py-3 rounded-lg bg-sn-bg-secondary border border-sn-border
                    text-sn-text placeholder-sn-text-muted focus:outline-none
                    focus:ring-2 focus:ring-sn-accent focus:border-transparent transition"
@@ -127,16 +127,16 @@
                  text-white font-medium transition disabled:opacity-60"
         >
           {#if loading}
-            {isCreate ? "Creating…" : "Unlocking…"}
+            {isCreate ? $i18n("unlock.btn.creating") : $i18n("unlock.btn.unlocking")}
           {:else}
-            {isCreate ? "Create vault" : "Unlock"}
+            {isCreate ? $i18n("unlock.btn.create") : $i18n("unlock.btn.unlock")}
           {/if}
         </button>
       </div>
     {/if}
 
     <p class="mt-8 text-center text-xs text-sn-text-muted">
-      Local-first • Encrypted with Argon2id + AES-256-GCM
+      {$i18n("unlock.footer")}
     </p>
   </div>
 </div>
