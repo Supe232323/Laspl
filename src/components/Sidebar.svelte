@@ -11,15 +11,16 @@
   import { lockVault, purgeDeleted } from "../lib/tauri";
   import type { View } from "../lib/types";
   import { createEventDispatcher } from "svelte";
+  import { i18n } from "../lib/i18n";
 
   const dispatch = createEventDispatcher<{ add: void; settings: void }>();
 
-  const views: { id: View; label: string; icon: string }[] = [
-    { id: "all", label: "All Items", icon: "🔐" },
-    { id: "favorites", label: "Favorites", icon: "★" },
-    { id: "recent", label: "Recently Used", icon: "🕒" },
-    { id: "trash", label: "Trash", icon: "🗑" },
-  ];
+  const views = $derived([
+    { id: "all" as View, label: $i18n("sidebar.all"), icon: "🔐" },
+    { id: "favorites" as View, label: $i18n("sidebar.favorites"), icon: "★" },
+    { id: "recent" as View, label: $i18n("sidebar.recent"), icon: "🕒" },
+    { id: "trash" as View, label: $i18n("sidebar.trash"), icon: "🗑" },
+  ]);
 
   let confirmPurge = $state(false);
 
@@ -56,11 +57,11 @@
 
 <aside class="w-56 flex-shrink-0 bg-sn-bg border-r border-sn-border flex flex-col h-full">
   <div class="px-4 py-4 flex items-center justify-between">
-    <span class="font-semibold text-sn-text tracking-tight">Laspl</span>
+    <span class="font-semibold text-sn-text tracking-tight">{$i18n("app.name")}</span>
     <button
       class="w-7 h-7 rounded-full bg-sn-accent text-white text-sm flex items-center justify-center
              hover:bg-sn-accent-hover transition"
-      title="Add new"
+      title={$i18n("sidebar.add")}
       onclick={() => dispatch("add")}
     >
       +
@@ -71,7 +72,7 @@
     <input
       type="text"
       bind:value={$searchQuery}
-      placeholder="Search…"
+      placeholder={$i18n("sidebar.search")}
       class="w-full px-3 py-1.5 text-sm rounded-full bg-sn-bg-secondary border border-sn-border
              text-sn-text placeholder-sn-text-muted focus:outline-none focus:ring-1 focus:ring-sn-accent"
     />
@@ -79,7 +80,7 @@
 
   <div class="px-2 flex-1 overflow-y-auto">
     <div class="text-xs font-medium text-sn-text-muted uppercase tracking-wider px-2 mb-1">
-      Views
+      {$i18n("sidebar.views")}
     </div>
     {#each views as v}
       <button
@@ -101,7 +102,7 @@
       <div
         class="mt-5 text-xs font-medium text-sn-text-muted uppercase tracking-wider px-2 mb-1"
       >
-        Categories
+        {$i18n("sidebar.categories")}
       </div>
       {#each $categories as cat}
         <button
@@ -121,19 +122,19 @@
       <div class="mt-4 px-2">
         {#if confirmPurge}
           <div class="p-2 rounded-md bg-red-500/10 border border-red-500/30 text-xs">
-            <p class="text-sn-text mb-2">Permanently delete all trash?</p>
+            <p class="text-sn-text mb-2">{$i18n("sidebar.purgeConfirm")}</p>
             <div class="flex gap-1">
               <button
                 class="flex-1 py-1 rounded text-sn-text-muted hover:bg-sn-bg-secondary"
                 onclick={() => (confirmPurge = false)}
               >
-                Cancel
+                {$i18n("sidebar.cancel")}
               </button>
               <button
                 class="flex-1 py-1 rounded bg-red-500 text-white"
                 onclick={emptyTrash}
               >
-                Empty
+                {$i18n("sidebar.empty")}
               </button>
             </div>
           </div>
@@ -142,7 +143,7 @@
             class="w-full py-1.5 text-xs text-red-400 hover:bg-sn-bg-secondary rounded-md transition"
             onclick={() => (confirmPurge = true)}
           >
-            Empty Trash
+            {$i18n("sidebar.emptyTrash")}
           </button>
         {/if}
       </div>
@@ -155,14 +156,14 @@
       class="w-full py-2 text-sm text-sn-text-secondary hover:text-sn-text
              hover:bg-sn-bg-secondary rounded-md transition"
     >
-      Settings
+      {$i18n("sidebar.settings")}
     </button>
     <button
       onclick={lock}
       class="w-full py-2 text-sm text-sn-text-secondary hover:text-sn-text
              hover:bg-sn-bg-secondary rounded-md transition"
     >
-      Lock Vault
+      {$i18n("sidebar.lock")}
     </button>
   </div>
 </aside>
