@@ -153,8 +153,7 @@ fn try_load_vault(path: &Path, password: &str) -> Result<(MasterKey, VaultData),
     let vault: EncryptedVault = serde_json::from_str(&raw).map_err(|e| e.to_string())?;
     let salt = B64.decode(&vault.salt).map_err(|e| e.to_string())?;
     let key = crypto::derive_key(password, &salt).map_err(|e| e.to_string())?;
-    let plaintext =
-        crypto::decrypt(&key, &vault.data).map_err(|_| "Wrong password".to_string())?;
+    let plaintext = crypto::decrypt(&key, &vault.data).map_err(|_| "Wrong password".to_string())?;
     let data: VaultData = serde_json::from_slice(&plaintext).map_err(|e| e.to_string())?;
     Ok((key, data))
 }
@@ -228,8 +227,7 @@ pub fn unlock_vault(
         Err(e) => {
             let bak = bak_path(&st.path);
             if bak.exists() {
-                try_load_vault(&bak, &password)
-                    .map_err(|_| format!("{e} (backup also failed)"))?
+                try_load_vault(&bak, &password).map_err(|_| format!("{e} (backup also failed)"))?
             } else {
                 return Err(e);
             }
@@ -398,8 +396,7 @@ pub fn change_master_password(
     let raw = fs::read_to_string(&st.path).map_err(|e| e.to_string())?;
     let vault: EncryptedVault = serde_json::from_str(&raw).map_err(|e| e.to_string())?;
     let old_salt = B64.decode(&vault.salt).map_err(|e| e.to_string())?;
-    let verify_key =
-        crypto::derive_key(&current_password, &old_salt).map_err(|e| e.to_string())?;
+    let verify_key = crypto::derive_key(&current_password, &old_salt).map_err(|e| e.to_string())?;
     let _ = crypto::decrypt(&verify_key, &vault.data)
         .map_err(|_| "Current password is incorrect".to_string())?;
 
@@ -464,8 +461,8 @@ pub fn generate_password(
     exclude_ambiguous: Option<bool>,
     separator: Option<String>,
 ) -> String {
-    use rand::RngCore;
     use rand::rngs::OsRng;
+    use rand::RngCore;
 
     let mode = mode.unwrap_or_else(|| "password".into());
     let symbols = symbols.unwrap_or(true);
@@ -499,8 +496,8 @@ pub fn generate_password(
 }
 
 fn generate_passphrase(word_count: usize, separator: &str) -> String {
-    use rand::RngCore;
     use rand::rngs::OsRng;
+    use rand::RngCore;
 
     const WORDLIST_RAW: &str = include_str!("eff_wordlist.txt");
 
