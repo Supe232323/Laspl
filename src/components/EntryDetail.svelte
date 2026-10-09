@@ -9,6 +9,7 @@
     copyWithClear,
     type GenerateMode,
   } from "../lib/tauri";
+  import { i18n, locale } from "../lib/i18n";
 
   let showPassword = $state(false);
   let editing = $state(false);
@@ -131,7 +132,8 @@
 
   function formatDate(ts: number) {
     if (!ts) return "—";
-    return new Date(ts).toLocaleString(undefined, {
+    const loc = $locale === "zh" ? "zh-CN" : $locale;
+    return new Date(ts).toLocaleString(loc, {
       weekday: "long",
       year: "numeric",
       month: "short",
@@ -197,7 +199,7 @@
     <div class="px-6 py-4 border-b border-sn-border flex items-center justify-between">
       <div class="min-w-0">
         <h1 class="text-xl font-semibold text-sn-text truncate">
-          {editing ? "Edit Entry" : $selectedEntry.title}
+          {editing ? $i18n("detail.editEntry") : $selectedEntry.title}
         </h1>
         {#if !editing}
           <p class="text-sm text-sn-text-muted mt-0.5">
@@ -211,33 +213,33 @@
             class="px-3 py-1.5 text-sm rounded-md bg-sn-accent text-white hover:bg-sn-accent-hover transition"
             onclick={restore}
           >
-            Restore
+            {$i18n("detail.restore")}
           </button>
         {:else if !editing}
           <button
             class="p-2 hover:bg-sn-bg-secondary rounded-md transition"
-            title="Copy password"
+            title={$i18n("detail.copyPassword")}
             onclick={() => copy($selectedEntry!.password, "password")}
           >
             {copied === "password" ? "✓" : "📋"}
           </button>
           <button
             class="p-2 hover:bg-sn-bg-secondary rounded-md transition"
-            title="Edit"
+            title={$i18n("detail.edit")}
             onclick={startEdit}
           >
             ✏️
           </button>
           <button
             class="p-2 hover:bg-sn-bg-secondary rounded-md transition"
-            title="Favorite"
+            title={$i18n("detail.favorite")}
             onclick={toggleFavorite}
           >
             {$selectedEntry.favorite ? "★" : "☆"}
           </button>
           <button
             class="p-2 hover:bg-sn-bg-secondary rounded-md transition text-red-400"
-            title="Delete"
+            title={$i18n("detail.delete")}
             onclick={() => (confirmDelete = true)}
           >
             🗑
@@ -249,20 +251,20 @@
     {#if confirmDelete}
       <div class="mx-6 mt-4 p-4 rounded-lg bg-red-500/10 border border-red-500/30">
         <p class="text-sm text-sn-text mb-3">
-          Move <strong>{$selectedEntry.title}</strong> to Trash?
+          {$i18n("detail.moveTrash", { title: $selectedEntry.title })}
         </p>
         <div class="flex gap-2 justify-end">
           <button
             class="px-3 py-1.5 text-sm rounded-md text-sn-text-secondary hover:bg-sn-bg-secondary"
             onclick={() => (confirmDelete = false)}
           >
-            Cancel
+            {$i18n("detail.cancel")}
           </button>
           <button
             class="px-3 py-1.5 text-sm rounded-md bg-red-500 text-white hover:bg-red-600"
             onclick={softDelete}
           >
-            Move to Trash
+            {$i18n("detail.moveToTrash")}
           </button>
         </div>
       </div>
@@ -271,7 +273,7 @@
     <div class="flex-1 overflow-y-auto px-6 py-6 space-y-5">
       {#if editing}
         <div>
-          <label class="block text-xs font-medium text-sn-text-muted uppercase mb-1.5">Title</label>
+          <label class="block text-xs font-medium text-sn-text-muted uppercase mb-1.5">{$i18n("detail.title")}</label>
           <input
             bind:value={editTitle}
             class="w-full px-3 py-2.5 rounded-lg bg-sn-bg-secondary border border-sn-border text-sn-text
@@ -280,7 +282,7 @@
         </div>
 
         <div>
-          <label class="block text-xs font-medium text-sn-text-muted uppercase mb-1.5">Username</label>
+          <label class="block text-xs font-medium text-sn-text-muted uppercase mb-1.5">{$i18n("detail.username")}</label>
           <input
             bind:value={editUsername}
             class="w-full px-3 py-2.5 rounded-lg bg-sn-bg-secondary border border-sn-border text-sn-text
@@ -289,7 +291,7 @@
         </div>
 
         <div>
-          <label class="block text-xs font-medium text-sn-text-muted uppercase mb-1.5">Password</label>
+          <label class="block text-xs font-medium text-sn-text-muted uppercase mb-1.5">{$i18n("detail.password")}</label>
           <div class="flex gap-2">
             <input
               bind:value={editPassword}
@@ -302,7 +304,7 @@
               disabled={generating}
               class="px-3 py-2.5 rounded-lg bg-sn-accent text-white text-sm hover:bg-sn-accent-hover disabled:opacity-60"
             >
-              {generating ? "…" : "Generate"}
+              {generating ? "…" : $i18n("detail.generate")}
             </button>
           </div>
           <div class="flex gap-2 mt-2">
@@ -313,7 +315,7 @@
                        : 'bg-sn-bg border-sn-border text-sn-text-muted'}"
               onclick={() => setGenMode("password")}
             >
-              Random
+              {$i18n("detail.random")}
             </button>
             <button
               class="flex-1 py-1.5 text-xs rounded-md border transition
@@ -322,7 +324,7 @@
                        : 'bg-sn-bg border-sn-border text-sn-text-muted'}"
               onclick={() => setGenMode("passphrase")}
             >
-              Passphrase
+              {$i18n("detail.passphrase")}
             </button>
           </div>
           <div class="flex flex-wrap items-center gap-3 mt-2 text-xs text-sn-text-muted">
@@ -334,23 +336,23 @@
                 bind:value={genLength}
                 class="w-20"
               />
-              {genLength}{genMode === "passphrase" ? " words" : " chars"}
+              {genLength} {genMode === "passphrase" ? $i18n("detail.words") : $i18n("detail.chars")}
             </label>
             {#if genMode === "password"}
               <label class="flex items-center gap-1 cursor-pointer">
                 <input type="checkbox" bind:checked={genSymbols} />
-                Symbols
+                {$i18n("detail.symbols")}
               </label>
               <label class="flex items-center gap-1 cursor-pointer">
                 <input type="checkbox" bind:checked={genExcludeAmbiguous} />
-                No ambiguous
+                {$i18n("detail.noAmbiguous")}
               </label>
             {/if}
           </div>
         </div>
 
         <div>
-          <label class="block text-xs font-medium text-sn-text-muted uppercase mb-1.5">URL</label>
+          <label class="block text-xs font-medium text-sn-text-muted uppercase mb-1.5">{$i18n("detail.url")}</label>
           <input
             bind:value={editUrl}
             class="w-full px-3 py-2.5 rounded-lg bg-sn-bg-secondary border border-sn-border text-sn-text
@@ -360,17 +362,17 @@
         </div>
 
         <div>
-          <label class="block text-xs font-medium text-sn-text-muted uppercase mb-1.5">Category</label>
+          <label class="block text-xs font-medium text-sn-text-muted uppercase mb-1.5">{$i18n("detail.category")}</label>
           <input
             bind:value={editCategory}
             class="w-full px-3 py-2.5 rounded-lg bg-sn-bg-secondary border border-sn-border text-sn-text
                    focus:outline-none focus:ring-1 focus:ring-sn-accent"
-            placeholder="Dev, Personal, Finance…"
+            placeholder={$i18n("new.placeholder.category")}
           />
         </div>
 
         <div>
-          <label class="block text-xs font-medium text-sn-text-muted uppercase mb-1.5">Notes</label>
+          <label class="block text-xs font-medium text-sn-text-muted uppercase mb-1.5">{$i18n("detail.notes")}</label>
           <textarea
             bind:value={editNotes}
             rows="3"
@@ -384,20 +386,20 @@
             class="px-4 py-2 rounded-lg text-sn-text-secondary hover:bg-sn-bg-secondary transition"
             onclick={cancelEdit}
           >
-            Cancel
+            {$i18n("detail.cancel")}
           </button>
           <button
             class="px-4 py-2 rounded-lg bg-sn-accent text-white hover:bg-sn-accent-hover transition disabled:opacity-60"
             onclick={saveEdit}
             disabled={saving || !editTitle.trim() || !editPassword}
           >
-            {saving ? "Saving…" : "Save"}
+            {saving ? $i18n("detail.saving") : $i18n("detail.save")}
           </button>
         </div>
       {:else}
         <div>
           <label class="block text-xs font-medium text-sn-text-muted uppercase tracking-wider mb-1.5">
-            Username
+            {$i18n("detail.username")}
           </label>
           <div class="flex items-center gap-2">
             <div class="flex-1 px-3 py-2.5 rounded-lg bg-sn-bg-secondary border border-sn-border text-sn-text">
@@ -408,14 +410,14 @@
                      text-sn-text-secondary hover:text-sn-text transition"
               onclick={() => copy($selectedEntry!.username, "username")}
             >
-              {copied === "username" ? "Copied" : "Copy"}
+              {copied === "username" ? $i18n("detail.copied") : $i18n("detail.copy")}
             </button>
           </div>
         </div>
 
         <div>
           <label class="block text-xs font-medium text-sn-text-muted uppercase tracking-wider mb-1.5">
-            Password
+            {$i18n("detail.password")}
           </label>
           <div class="flex items-center gap-2">
             <div class="flex-1 px-3 py-2.5 rounded-lg bg-sn-bg-secondary border border-sn-border text-sn-text font-mono">
@@ -426,13 +428,13 @@
                      text-sn-text-secondary hover:text-sn-text transition"
               onclick={() => (showPassword = !showPassword)}
             >
-              {showPassword ? "Hide" : "Show"}
+              {showPassword ? $i18n("detail.hide") : $i18n("detail.show")}
             </button>
             <button
               class="px-3 py-2.5 rounded-lg bg-sn-accent text-white hover:bg-sn-accent-hover transition"
               onclick={() => copy($selectedEntry!.password, "password")}
             >
-              {copied === "password" ? "Copied" : "Copy"}
+              {copied === "password" ? $i18n("detail.copied") : $i18n("detail.copy")}
             </button>
           </div>
         </div>
@@ -440,7 +442,7 @@
         {#if $selectedEntry.url}
           <div>
             <label class="block text-xs font-medium text-sn-text-muted uppercase tracking-wider mb-1.5">
-              Website
+              {$i18n("detail.website")}
             </label>
             <div class="flex items-center gap-2">
               <a
@@ -455,9 +457,9 @@
               <button
                 class="px-3 py-2.5 rounded-lg bg-sn-accent text-white hover:bg-sn-accent-hover transition text-sm whitespace-nowrap"
                 onclick={openSite}
-                title="Open site and copy username"
+                title={$i18n("detail.openTitle")}
               >
-                Open
+                {$i18n("detail.open")}
               </button>
             </div>
           </div>
@@ -466,7 +468,7 @@
         {#if $selectedEntry.notes}
           <div>
             <label class="block text-xs font-medium text-sn-text-muted uppercase tracking-wider mb-1.5">
-              Notes
+              {$i18n("detail.notes")}
             </label>
             <div class="px-3 py-2.5 rounded-lg bg-sn-bg-secondary border border-sn-border text-sn-text whitespace-pre-wrap">
               {$selectedEntry.notes}
@@ -475,13 +477,13 @@
         {/if}
 
         <div class="pt-4 border-t border-sn-border text-xs text-sn-text-muted space-y-1">
-          <div>Category: {$selectedEntry.category ?? "None"}</div>
-          <div>Created: {formatDate($selectedEntry.createdAt)}</div>
+          <div>{$i18n("detail.categoryLabel", { cat: $selectedEntry.category ?? $i18n("detail.none") })}</div>
+          <div>{$i18n("detail.created")}: {formatDate($selectedEntry.createdAt)}</div>
           {#if $selectedEntry.lastUsedAt}
-            <div>Last used: {formatDate($selectedEntry.lastUsedAt)}</div>
+            <div>{$i18n("detail.lastUsed")}: {formatDate($selectedEntry.lastUsedAt)}</div>
           {/if}
           {#if $selectedEntry.deleted}
-            <div class="text-red-400">In Trash</div>
+            <div class="text-red-400">{$i18n("detail.inTrash")}</div>
           {/if}
         </div>
       {/if}
@@ -490,12 +492,12 @@
     <div class="flex-1 flex items-center justify-center text-sn-text-muted">
       <div class="text-center">
         <p class="text-lg">
-          {$currentView === "trash" ? "Trash is empty" : "Select an item"}
+          {$currentView === "trash" ? $i18n("detail.trashEmpty") : $i18n("detail.selectItem")}
         </p>
         <p class="text-sm mt-1">
           {$currentView === "trash"
-            ? "Deleted items will appear here"
-            : "or create a new one with the + button"}
+            ? $i18n("detail.trashHint")
+            : $i18n("detail.orCreate")}
         </p>
       </div>
     </div>
