@@ -63,7 +63,7 @@ jobs:
 
             Laspl is not code-signed/notarized. Download only from this GitHub release.
             See the README for macOS “Open Anyway” steps.
-          releaseDraft: true
+          releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}
 
@@ -95,6 +95,6 @@ jobs:
         with:
           tag_name: ${{ github.ref_name }}
           files: assets/SHA256SUMS
-          draft: true
+          draft: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
