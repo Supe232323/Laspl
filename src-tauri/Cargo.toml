@@ -23,7 +23,7 @@ rand = "0.10" # Synced to modern v0.10 namespaces
 rand_core = "0.6" # Injected to protect your vault.rs imports
 zeroize = { version = "1", features = ["derive"] }
 thiserror = "2" # Cleaned up modern error handling profiles
-base64 = "0.22"
+base64 = "0.23"
 uuid = { version = "1", features = ["v4"] }
 dirs = "5"
 
