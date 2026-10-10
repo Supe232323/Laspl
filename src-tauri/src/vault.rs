@@ -461,12 +461,13 @@ pub fn generate_password(
     exclude_ambiguous: Option<bool>,
     separator: Option<String>,
 ) -> String {
-    use rand::rngs::OsRng;
-    use rand::RngCore;
+
+    use rand_core::{OsRng, RngCore};
 
     let mode = mode.unwrap_or_else(|| "password".into());
     let symbols = symbols.unwrap_or(true);
     let exclude_ambiguous = exclude_ambiguous.unwrap_or(false);
+
 
     if mode == "passphrase" {
         let word_count = length.unwrap_or(5).clamp(4, 10);
@@ -496,8 +497,8 @@ pub fn generate_password(
 }
 
 fn generate_passphrase(word_count: usize, separator: &str) -> String {
-    use rand::rngs::OsRng;
-    use rand::RngCore;
+    use rand_core::{OsRng, RngCore};
+
 
     const WORDLIST_RAW: &str = include_str!("eff_wordlist.txt");
 
