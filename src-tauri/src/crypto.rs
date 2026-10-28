@@ -1,9 +1,9 @@
 use aes_gcm::{
-    aead::{Aead, KeyInit, OsRng},
     Aes256Gcm, Nonce,
+    aead::{Aead, KeyInit, OsRng},
 };
 use argon2::{Argon2, Params, Version};
-use base64::{engine::general_purpose::STANDARD as B64, Engine};
+use base64::{Engine, engine::general_purpose::STANDARD as B64};
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
