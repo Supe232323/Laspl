@@ -1915,7 +1915,7 @@ version = "1.0.5"
 dependencies = [
  "aes-gcm",
  "argon2",
- "base64 0.22.1",
+ "base64 0.23.1",
  "dirs 5.0.1",
  "rand",
  "rand_core 0.6.4",
